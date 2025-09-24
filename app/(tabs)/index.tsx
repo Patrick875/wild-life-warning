@@ -1,98 +1,217 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  RefreshControl,
+} from 'react-native';
+import { TriangleAlert as AlertTriangle, MapPin, Clock, ChevronRight } from 'lucide-react-native';
+import { wildlifeApi } from '@/services/api';
+import { WildlifeAlert } from '@/types/wildlife';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function AlertsScreen() {
+  const [alerts, setAlerts] = useState<WildlifeAlert[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-export default function HomeScreen() {
+  useEffect(() => {
+    loadAlerts();
+  }, []);
+
+  const loadAlerts = async () => {
+    try {
+      const data = await wildlifeApi.getAlerts();
+      setAlerts(data);
+    } catch (error) {
+      console.error('Failed to load alerts:', error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadAlerts();
+    setRefreshing(false);
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'high': return '#EF4444';
+      case 'medium': return '#F97316';
+      case 'low': return '#22C55E';
+      default: return '#6B7280';
+    }
+  };
+
+  const formatTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const alertTime = new Date(timestamp);
+    const diffInHours = Math.floor((now.getTime() - alertTime.getTime()) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours === 1) return '1 hour ago';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return '1 day ago';
+    return `${diffInDays} days ago`;
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Wildlife Alerts</Text>
+        <Text style={styles.subtitle}>Recent activity in your area</Text>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {alerts.map((alert) => (
+          <TouchableOpacity key={alert.id} style={styles.alertCard}>
+            <View style={styles.alertHeader}>
+              <View style={[
+                styles.severityIndicator,
+                { backgroundColor: getSeverityColor(alert.severity) }
+              ]} />
+              <View style={styles.alertInfo}>
+                <Text style={styles.alertTitle}>{alert.title}</Text>
+                <Text style={styles.alertSpecies}>{alert.species}</Text>
+              </View>
+              <ChevronRight size={20} color="#9CA3AF" />
+            </View>
+            
+            <Text style={styles.alertDescription}>{alert.description}</Text>
+            
+            <View style={styles.alertFooter}>
+              <View style={styles.alertMeta}>
+                <MapPin size={16} color="#6B7280" />
+                <Text style={styles.alertLocation}>{alert.location}</Text>
+              </View>
+              <View style={styles.alertMeta}>
+                <Clock size={16} color="#6B7280" />
+                <Text style={styles.alertTime}>{formatTimeAgo(alert.timestamp)}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+        ))}
+        
+        {alerts.length === 0 && (
+          <View style={styles.emptyState}>
+            <AlertTriangle size={48} color="#9CA3AF" />
+            <Text style={styles.emptyTitle}>No alerts in your area</Text>
+            <Text style={styles.emptyText}>
+              We'll notify you when there's wildlife activity nearby
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+  },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 24,
+    backgroundColor: 'white',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  alertCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  alertHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 12,
   },
-  stepContainer: {
-    gap: 8,
+  severityIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  alertInfo: {
+    flex: 1,
+  },
+  alertTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 2,
+  },
+  alertSpecies: {
+    fontSize: 14,
+    color: '#22C55E',
+    fontWeight: '500',
+  },
+  alertDescription: {
+    fontSize: 16,
+    color: '#4B5563',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  alertFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  alertMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  alertLocation: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  alertTime: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 64,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#4B5563',
+    marginTop: 16,
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  emptyText: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
