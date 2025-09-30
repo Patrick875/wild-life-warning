@@ -22,6 +22,7 @@ export default function TabLayout() {
           marginTop: 4,
         },
       }}>
+        
       <Tabs.Screen
         name="index"
         options={{
@@ -31,6 +32,15 @@ export default function TabLayout() {
           ),
         }}
       />
+       {/* <Tabs.Screen
+        name="explore"
+        options={{
+          title: 'Explore',
+          tabBarIcon: ({ size, color }) => (
+            <Camera size={size} color={color} />
+          ),
+        }}
+      /> */}
       <Tabs.Screen
         name="collect"
         options={{
@@ -39,7 +49,7 @@ export default function TabLayout() {
             <Camera size={size} color={color} />
           ),
         }}
-      />
+      /> 
       <Tabs.Screen
         name="settings"
         options={{
