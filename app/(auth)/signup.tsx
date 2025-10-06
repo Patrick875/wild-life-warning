@@ -1,15 +1,15 @@
+import { Link, router } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  View,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Alert,
+  View,
 } from 'react-native';
-import { Link, router } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
 
 export default function SignUpScreen() {
   const [form, setForm] = useState({
@@ -33,7 +33,7 @@ export default function SignUpScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href="/welcome" asChild>
+        <Link href="/" asChild>
           <TouchableOpacity style={styles.backButton}>
             <ArrowLeft size={24} color="#22C55E" />
           </TouchableOpacity>
