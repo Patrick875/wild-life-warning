@@ -62,7 +62,7 @@ const mockAlerts: WildlifeAlert[] = [
 ];
 
 const baseUrl = "https://wildlife-conservation-backend.onrender.com/api/v1";
-const api = axios.create({
+export const api = axios.create({
 	baseURL: baseUrl,
 });
 class WildlifeAPI {

@@ -11,7 +11,6 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          borderRadius: 20,
           backgroundColor: 'white',
           borderTopWidth: 0,
           paddingTop: 8,

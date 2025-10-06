@@ -1,14 +1,13 @@
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link } from 'expo-router';
 import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
   SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { Link } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 
 export default function WelcomeScreen() {
   return (
@@ -34,7 +33,7 @@ export default function WelcomeScreen() {
               </TouchableOpacity>
             </Link>
             
-            <Link href="/(tabs)" asChild>
+            <Link href="/(auth)/login" asChild>
               <TouchableOpacity style={styles.secondaryButton}>
                 <Text style={styles.secondaryButtonText}>Sign In</Text>
               </TouchableOpacity>
