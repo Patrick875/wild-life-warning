@@ -36,7 +36,6 @@ export default function DynamicForm({
   onSubmit,
   isSubmitting = false,
   isSuccess = false,
-
 }: DynamicFormProps) {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [locationPermission, setLocationPermission] = useState(false);
@@ -207,10 +206,10 @@ export default function DynamicForm({
     return null;
   };
   useEffect(() => {
-    if(isSuccess){
+    if (isSuccess) {
       setFormData({});
     }
-  }, [isSuccess])
+  }, [isSuccess]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>

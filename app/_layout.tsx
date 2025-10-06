@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useContext } from 'react';
+import {SafeAreaProvider} from 'react-native-safe-area-context'
 
 
 const queryClient = new QueryClient();
@@ -31,9 +32,12 @@ export default function RootLayout() {
   return (
     <>
      <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RootNavigator/>
-      </AuthProvider>
+     <SafeAreaProvider>
+     <AuthProvider>
+             <RootNavigator/>
+           </AuthProvider>
+     </SafeAreaProvider>
+
       <StatusBar style="auto" />
      </QueryClientProvider>
       
