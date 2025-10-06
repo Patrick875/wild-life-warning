@@ -62,6 +62,9 @@ const mockAlerts: WildlifeAlert[] = [
 ];
 
 const baseUrl = "https://wildlife-conservation-backend.onrender.com/api/v1";
+const api = axios.create({
+	baseURL: baseUrl,
+});
 class WildlifeAPI {
 	private baseUrl = baseUrl;
 
@@ -82,7 +85,7 @@ class WildlifeAPI {
 
 	async submitObservation(observation: any) {
 		try {
-			const response = await axios.post(`${this.baseUrl}`, observation);
+			const response = await api.post("/", observation);
 
 			if (!response) {
 				throw new Error(`Failed to submit observation: ${response}`);
