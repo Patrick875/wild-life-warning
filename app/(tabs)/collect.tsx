@@ -3,7 +3,8 @@ import { fetchKoboFormStructure } from "@/services/api";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import React from "react";
-import { ActivityIndicator, Alert, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert,StyleSheet, Text, View } from "react-native";
+import {SafeAreaView} from 'react-native-safe-area-context'
 
 interface FormData {
 	species: string;
