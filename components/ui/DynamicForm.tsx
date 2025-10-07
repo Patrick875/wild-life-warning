@@ -1,6 +1,8 @@
+import { AuthContext } from "@/context/AuthContext";
 import { Picker } from "@react-native-picker/picker";
 import * as Location from "expo-location";
-import React, { useEffect, useState } from "react";
+import { jwtDecode } from 'jwt-decode';
+import React, { useContext, useEffect, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -11,7 +13,6 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
-
 interface Field {
   $xpath: string;
   type: string;
@@ -37,6 +38,9 @@ export default function DynamicForm({
   isSubmitting = false,
   isSuccess = false,
 }: DynamicFormProps) {
+  const {userToken}=useContext(AuthContext)
+  const decoded:any= userToken ? jwtDecode(userToken) : null;
+
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [locationPermission, setLocationPermission] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{
@@ -99,7 +103,7 @@ export default function DynamicForm({
       kobo_form_id: fields[0]?.$form_id || "unknown_form",
       status: "pending",
       submitted_at: new Date().toISOString(),
-      username: "field_researcher_01",
+      username: decoded?.username || '',
       device_id: "mobile_device_123",
       submission_data: {
         ...formData,

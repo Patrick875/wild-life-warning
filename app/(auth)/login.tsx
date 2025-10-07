@@ -1,42 +1,63 @@
-import { Link, router } from "expo-router";
+import { AuthContext } from "@/context/AuthContext";
+import { useLogin } from "@/services/auth";
+import { yupResolver } from "@hookform/resolvers/yup";
+import { Link } from "expo-router";
 import { ArrowLeft, Eye, EyeOff, Lock, Mail } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as yup from "yup";
+
+const loginSchema = yup.object().shape({
+  identifier: yup
+    .string()
+    .trim()
+    .required("Email or phone is required")
+    .test("is-valid", "Enter a valid email or phone", (value) => {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const phoneRegex = /^[0-9]{9,15}$/;
+      return emailRegex.test(value || "") || phoneRegex.test(value || "");
+    }),
+  password: yup.string().required("Password is required").min(6, "Password must be at least 6 characters"),
+});
 
 export default function LoginScreen() {
-  const [form, setForm] = useState({
-    identifier: "",
-    password: "",
-  });
+  const { mutate, isPending } = useLogin();
+  const {login}=useContext(AuthContext)
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  const handleLogin = async () => {
-    // Validation
-    if (!form.identifier.trim()) {
-      Alert.alert("Error", "Please enter your email or phone number");
-      return;
-    }
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
+    resolver: yupResolver(loginSchema),
+    defaultValues: {
+      identifier: "",
+      password: "",
+    },
+  });
 
-    if (!form.password) {
-      Alert.alert("Error", "Please enter a password");
-      return;
-    }
-
-    // TODO: Implement actual login logic
-    console.log("Login with:", form);
-    router.replace("/(tabs)");
+  const onSubmit = (data: { identifier: string; password: string }) => {
+    mutate({
+      identifier: data.identifier.trim(),
+      password: data.password.trim(),
+    },{
+      onSuccess:(res)=>{
+        login(res.data?.access_token as string)
+      }
+    });
   };
 
   return (
@@ -70,7 +91,7 @@ export default function LoginScreen() {
 
           {/* Form */}
           <View style={styles.form}>
-            {/* Email/Phone Input */}
+            {/* Identifier Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Email or Phone Number</Text>
               <View
@@ -84,20 +105,30 @@ export default function LoginScreen() {
                   color={focusedInput === "identifier" ? "#22C55E" : "#9CA3AF"}
                   style={styles.inputIcon}
                 />
-                <TextInput
-                  style={styles.input}
-                  value={form.identifier}
-                  onChangeText={(text) =>
-                    setForm({ ...form, identifier: text })
-                  }
-                  onFocus={() => setFocusedInput("identifier")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Enter your email or phone"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="none"
-                  keyboardType="email-address"
+                <Controller
+                  control={control}
+                  name="identifier"
+                  render={({ field: { onChange, value, onBlur } }) => (
+                    <TextInput
+                      style={styles.input}
+                      value={value}
+                      onChangeText={onChange}
+                      onFocus={() => setFocusedInput("identifier")}
+                      onBlur={() => {
+                        setFocusedInput(null);
+                        onBlur();
+                      }}
+                      placeholder="Enter your email or phone"
+                      placeholderTextColor="#9CA3AF"
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                    />
+                  )}
                 />
               </View>
+              {errors.identifier && (
+                <Text style={styles.errorText}>{errors.identifier.message}</Text>
+              )}
             </View>
 
             {/* Password Input */}
@@ -114,15 +145,24 @@ export default function LoginScreen() {
                   color={focusedInput === "password" ? "#22C55E" : "#9CA3AF"}
                   style={styles.inputIcon}
                 />
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  value={form.password}
-                  onChangeText={(text) => setForm({ ...form, password: text })}
-                  onFocus={() => setFocusedInput("password")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Enter your password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showPassword}
+                <Controller
+                  control={control}
+                  name="password"
+                  render={({ field: { onChange, value, onBlur } }) => (
+                    <TextInput
+                      style={[styles.input, styles.passwordInput]}
+                      value={value}
+                      onChangeText={onChange}
+                      onFocus={() => setFocusedInput("password")}
+                      onBlur={() => {
+                        setFocusedInput(null);
+                        onBlur();
+                      }}
+                      placeholder="Enter your password"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!showPassword}
+                    />
+                  )}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
@@ -135,6 +175,9 @@ export default function LoginScreen() {
                   )}
                 </TouchableOpacity>
               </View>
+              {errors.password && (
+                <Text style={styles.errorText}>{errors.password.message}</Text>
+              )}
             </View>
 
             {/* Forgot Password */}
@@ -145,10 +188,13 @@ export default function LoginScreen() {
             {/* Login Button */}
             <TouchableOpacity
               style={styles.loginButton}
-              onPress={handleLogin}
+              onPress={handleSubmit(onSubmit)}
               activeOpacity={0.8}
+              disabled={isPending}
             >
-              <Text style={styles.loginButtonText}>Login</Text>
+              <Text style={styles.loginButtonText}>
+                {isPending ? "Logging in..." : "Login"}
+              </Text>
             </TouchableOpacity>
 
             {/* Divider */}
@@ -173,6 +219,7 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -318,5 +365,10 @@ const styles = StyleSheet.create({
     color: "#22C55E",
     fontSize: 15,
     fontWeight: "700",
+  },
+   errorText: {
+    color: "red",
+    fontSize: 13,
+    marginTop: 4,
   },
 });

@@ -1,10 +1,11 @@
 import { useRegister } from "@/services/auth";
+import { yupResolver } from "@hookform/resolvers/yup";
 import { Picker } from "@react-native-picker/picker";
 import { Link } from "expo-router";
 import { ArrowLeft, Briefcase, Building2, ChevronDown, Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react-native";
 import React, { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -13,9 +14,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as yup from "yup";
 
 const OCCUPATIONS = [
   { label: "Farmer", value: "farmer" },
@@ -23,68 +25,67 @@ const OCCUPATIONS = [
   { label: "Other", value: "other" },
 ];
 
+const schema = yup.object().shape({
+  full_name: yup.string().trim().required("Full name is required"),
+  phone_number: yup
+    .string()
+    .matches(/^[0-9]{9}$/, "Phone number must be 9 digits")
+    .required("Phone number is required"),
+  occupation: yup.string().required("Occupation is required"),
+  organization: yup.string().trim().required("Organization is required"),
+  email: yup.string().email("Enter a valid email").optional(),
+  password: yup
+    .string()
+    .required("Password is required")
+    .matches(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/,
+      "Password must be at least 8 characters, include 1 uppercase, 1 lowercase, and 1 number"
+    ),
+  password_confirm: yup
+    .string()
+    .oneOf([yup.ref("password")], "Passwords must match")
+    .required("Please confirm your password"),
+});
+
 export default function SignUpScreen() {
   const { mutate, isPending } = useRegister();
-  const [form, setForm] = useState({
-    full_name: "",
-    phone_number: "",
-    occupation: "",
-    email: "",
-    password: "",
-    password_confirm: "",
-    organization: "",
-  });
   const [showOccupationPicker, setShowOccupationPicker] = useState(false);
   const [tempOccupation, setTempOccupation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
-  const handleSignUp = async () => {
-    console.log("Sign up with:", form);
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: yupResolver(schema),
+    defaultValues: {
+      full_name: "",
+      phone_number: "",
+      occupation: "",
+      organization: "",
+      email: "",
+      password: "",
+      password_confirm: "",
+    },
+  });
 
-    // Validation
-    if (!form.full_name.trim()) {
-      Alert.alert("Error", "Please enter your full name");
-      return;
-    }
-    if (!form.phone_number.trim()) {
-      Alert.alert("Error", "Please enter your phone number");
-      return;
-    }
-    if (!form.occupation) {
-      Alert.alert("Error", "Please select your occupation");
-      return;
-    }
-    if (!form.password) {
-      Alert.alert("Error", "Please enter a password");
-      return;
-    }
-    if (form.password !== form.password_confirm) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
+  const phoneDigits = watch("phone_number");
 
-    mutate(form);
-  };
-
-  const getOccupationLabel = (value: string) => {
-    const occupation = OCCUPATIONS.find((occ) => occ.value === value);
-    return occupation ? occupation.label : "Select your occupation";
-  };
-
-  const handleOccupationSelect = () => {
-    setTempOccupation(form.occupation);
-    setShowOccupationPicker(true);
+  const onSubmit = (data: any) => {
+    const payload = {
+      ...data,
+      phone_number: `+250${data.phone_number}`,
+    };
+    mutate(payload);
   };
 
   const handleOccupationConfirm = () => {
-    setForm({ ...form, occupation: tempOccupation });
-    setShowOccupationPicker(false);
-  };
-
-  const handleOccupationCancel = () => {
-    setTempOccupation("");
+    setValue("occupation", tempOccupation);
     setShowOccupationPicker(false);
   };
 
@@ -94,7 +95,6 @@ export default function SignUpScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        {/* Header */}
         <View style={styles.header}>
           <Link href="/" asChild>
             <TouchableOpacity style={styles.backButton}>
@@ -109,270 +109,266 @@ export default function SignUpScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets={true}
         >
           <View style={styles.form}>
-            <Text style={styles.subtitle}>
-              Join us and start your journey today
-            </Text>
+            <Text style={styles.subtitle}>Join us and start your journey today</Text>
 
             {/* Full Name */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  focusedInput === "full_name" && styles.inputContainerFocused,
-                ]}
-              >
-                <User
-                  size={20}
-                  color={focusedInput === "full_name" ? "#22C55E" : "#9CA3AF"}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={form.full_name}
-                  onChangeText={(text) => setForm({ ...form, full_name: text })}
-                  onFocus={() => setFocusedInput("full_name")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Enter your full name"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="words"
-                />
-              </View>
-            </View>
-
-            {/* Phone */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Phone Number</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  focusedInput === "phone_number" && styles.inputContainerFocused,
-                ]}
-              >
-                <Phone
-                  size={20}
-                  color={focusedInput === "phone_number" ? "#22C55E" : "#9CA3AF"}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  keyboardType="phone-pad"
-                  value={form.phone_number}
-                  onChangeText={(text) =>
-                    setForm({ ...form, phone_number: text })
-                  }
-                  onFocus={() => setFocusedInput("phone_number")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Enter your phone number"
-                  placeholderTextColor="#9CA3AF"
-                />
-              </View>
-            </View>
-
-            {/* Occupation */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Occupation</Text>
-              <TouchableOpacity
-                style={[
-                  styles.pickerButton,
-                  focusedInput === "occupation" && styles.pickerButtonFocused,
-                ]}
-                onPress={handleOccupationSelect}
-              >
-                <View style={styles.pickerButtonContent}>
-                  <Briefcase size={20} color="#9CA3AF" style={styles.inputIcon} />
-                  <Text
+            <Controller
+              control={control}
+              name="full_name"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Full Name</Text>
+                  <View
                     style={[
-                      styles.pickerButtonText,
-                      !form.occupation && styles.pickerPlaceholder,
+                      styles.inputContainer,
+                      focusedInput === "full_name" && styles.inputContainerFocused,
                     ]}
                   >
-                    {getOccupationLabel(form.occupation)}
-                  </Text>
+                    <User
+                      size={20}
+                      color={focusedInput === "full_name" ? "#22C55E" : "#9CA3AF"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      value={value}
+                      onChangeText={onChange}
+                      onFocus={() => setFocusedInput("full_name")}
+                      onBlur={() => setFocusedInput(null)}
+                      placeholder="Enter your full name"
+                      placeholderTextColor="#9CA3AF"
+                      autoCapitalize="words"
+                    />
+                  </View>
+                  {errors.full_name && <Text style={styles.errorText}>{errors.full_name.message}</Text>}
                 </View>
-                <ChevronDown size={20} color="#6B7280" />
-              </TouchableOpacity>
-            </View>
+              )}
+            />
+
+            {/* Phone Number */}
+            <Controller
+              control={control}
+              name="phone_number"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Phone Number</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      focusedInput === "phone_number" && styles.inputContainerFocused,
+                    ]}
+                  >
+                    <Phone
+                      size={20}
+                      color={focusedInput === "phone_number" ? "#22C55E" : "#9CA3AF"}
+                      style={styles.inputIcon}
+                    />
+                    <Text style={styles.phonePrefix}>+250</Text>
+                    <TextInput
+                      style={styles.input}
+                      keyboardType="phone-pad"
+                      value={value}
+                      onChangeText={(text) => {
+                        const cleaned = text.replace(/[^0-9]/g, "");
+                        onChange(cleaned);
+                      }}
+                      onFocus={() => setFocusedInput("phone_number")}
+                      onBlur={() => setFocusedInput(null)}
+                      placeholder="7XX XXX XXX"
+                      placeholderTextColor="#9CA3AF"
+                      maxLength={9}
+                    />
+                  </View>
+                  {errors.phone_number && <Text style={styles.errorText}>{errors.phone_number.message}</Text>}
+                </View>
+              )}
+            />
+
+            {/* Occupation */}
+            <Controller
+              control={control}
+              name="occupation"
+              render={({ field: { value } }) => (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Occupation</Text>
+                  <TouchableOpacity
+                    style={[styles.pickerButton]}
+                    onPress={() => {
+                      setTempOccupation(value);
+                      setShowOccupationPicker(true);
+                    }}
+                  >
+                    <View style={styles.pickerButtonContent}>
+                      <Briefcase size={20} color="#9CA3AF" style={styles.inputIcon} />
+                      <Text
+                        style={[
+                          styles.pickerButtonText,
+                          !value && styles.pickerPlaceholder,
+                        ]}
+                      >
+                        {value
+                          ? OCCUPATIONS.find((occ) => occ.value === value)?.label
+                          : "Select your occupation"}
+                      </Text>
+                    </View>
+                    <ChevronDown size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                  {errors.occupation && <Text style={styles.errorText}>{errors.occupation.message}</Text>}
+                </View>
+              )}
+            />
 
             {/* Organization */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Organization</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  focusedInput === "organization" && styles.inputContainerFocused,
-                ]}
-              >
-                <Building2
-                  size={20}
-                  color={focusedInput === "organization" ? "#22C55E" : "#9CA3AF"}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={form.organization}
-                  onChangeText={(text) =>
-                    setForm({ ...form, organization: text })
-                  }
-                  onFocus={() => setFocusedInput("organization")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Enter your organization"
-                  placeholderTextColor="#9CA3AF"
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
+            <Controller
+              control={control}
+              name="organization"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Organization</Text>
+                  <View
+                    style={[
+                      styles.inputContainer,
+                      focusedInput === "organization" && styles.inputContainerFocused,
+                    ]}
+                  >
+                    <Building2
+                      size={20}
+                      color={focusedInput === "organization" ? "#22C55E" : "#9CA3AF"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      value={value}
+                      onChangeText={onChange}
+                      onFocus={() => setFocusedInput("organization")}
+                      onBlur={() => setFocusedInput(null)}
+                      placeholder="Enter your organization"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                  {errors.organization && <Text style={styles.errorText}>{errors.organization.message}</Text>}
+                </View>
+              )}
+            />
 
             {/* Email */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email (optional)</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  focusedInput === "email" && styles.inputContainerFocused,
-                ]}
-              >
-                <Mail
-                  size={20}
-                  color={focusedInput === "email" ? "#22C55E" : "#9CA3AF"}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.input}
-                  value={form.email}
-                  onChangeText={(text) => setForm({ ...form, email: text })}
-                  onFocus={() => setFocusedInput("email")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email (optional)</Text>
+                  <View style={styles.inputContainer}>
+                    <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={styles.input}
+                      value={value}
+                      onChangeText={onChange}
+                      placeholder="Enter your email"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+                </View>
+              )}
+            />
 
             {/* Password */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  focusedInput === "password" && styles.inputContainerFocused,
-                ]}
-              >
-                <Lock
-                  size={20}
-                  color={focusedInput === "password" ? "#22C55E" : "#9CA3AF"}
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  value={form.password}
-                  onChangeText={(text) => setForm({ ...form, password: text })}
-                  onFocus={() => setFocusedInput("password")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Create a password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showPassword}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeIcon}
-                >
-                  {showPassword ? (
-                    <EyeOff size={20} color="#9CA3AF" />
-                  ) : (
-                    <Eye size={20} color="#9CA3AF" />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Controller
+              control={control}
+              name="password"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Password</Text>
+                  <View style={[styles.inputContainer]}>
+                    <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, styles.passwordInput]}
+                      value={value}
+                      onChangeText={onChange}
+                      placeholder="Create a password"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!showPassword}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeIcon}
+                    >
+                      {showPassword ? (
+                        <EyeOff size={20} color="#9CA3AF" />
+                      ) : (
+                        <Eye size={20} color="#9CA3AF" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+                </View>
+              )}
+            />
 
             {/* Confirm Password */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <View
-                style={[
-                  styles.inputContainer,
-                  focusedInput === "password_confirm" &&
-                    styles.inputContainerFocused,
-                ]}
-              >
-                <Lock
-                  size={20}
-                  color={
-                    focusedInput === "password_confirm" ? "#22C55E" : "#9CA3AF"
-                  }
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  value={form.password_confirm}
-                  onChangeText={(text) =>
-                    setForm({ ...form, password_confirm: text })
-                  }
-                  onFocus={() => setFocusedInput("password_confirm")}
-                  onBlur={() => setFocusedInput(null)}
-                  placeholder="Confirm your password"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!showConfirmPassword}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles.eyeIcon}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff size={20} color="#9CA3AF" />
-                  ) : (
-                    <Eye size={20} color="#9CA3AF" />
+            <Controller
+              control={control}
+              name="password_confirm"
+              render={({ field: { onChange, value } }) => (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Confirm Password</Text>
+                  <View style={styles.inputContainer}>
+                    <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
+                    <TextInput
+                      style={[styles.input, styles.passwordInput]}
+                      value={value}
+                      onChangeText={onChange}
+                      placeholder="Confirm your password"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!showConfirmPassword}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={styles.eyeIcon}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff size={20} color="#9CA3AF" />
+                      ) : (
+                        <Eye size={20} color="#9CA3AF" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  {errors.password_confirm && (
+                    <Text style={styles.errorText}>{errors.password_confirm.message}</Text>
                   )}
-                </TouchableOpacity>
-              </View>
-            </View>
+                </View>
+              )}
+            />
 
-            {/* Sign Up Button */}
+            {/* Submit */}
             <TouchableOpacity
               style={[styles.signUpButton, isPending && styles.signUpButtonDisabled]}
-              onPress={handleSignUp}
-              activeOpacity={0.8}
+              onPress={handleSubmit(onSubmit)}
               disabled={isPending}
             >
               <Text style={styles.signUpButtonText}>
                 {isPending ? "Creating Account..." : "Create Account"}
               </Text>
             </TouchableOpacity>
-
-            {/* Footer */}
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
-              <Link href="/(tabs)" asChild>
-                <TouchableOpacity>
-                  <Text style={styles.signInLink}>Sign In</Text>
-                </TouchableOpacity>
-              </Link>
-            </View>
           </View>
         </ScrollView>
 
-        {/* iOS-style Modal Picker */}
+        {/* Occupation Modal */}
         <Modal
           visible={showOccupationPicker}
           transparent
           animationType="slide"
-          onRequestClose={handleOccupationCancel}
+          onRequestClose={() => setShowOccupationPicker(false)}
         >
           <View style={styles.modalOverlay}>
-            <TouchableOpacity
-              style={styles.modalBackdrop}
-              activeOpacity={1}
-              onPress={handleOccupationCancel}
-            />
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={handleOccupationCancel}>
+                <TouchableOpacity onPress={() => setShowOccupationPicker(false)}>
                   <Text style={styles.modalCancelButton}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>Select Occupation</Text>
@@ -383,14 +379,9 @@ export default function SignUpScreen() {
               <Picker
                 selectedValue={tempOccupation}
                 onValueChange={(itemValue) => setTempOccupation(itemValue)}
-                style={styles.modalPicker}
               >
                 {OCCUPATIONS.map((occupation) => (
-                  <Picker.Item
-                    key={occupation.value}
-                    label={occupation.label}
-                    value={occupation.value}
-                  />
+                  <Picker.Item key={occupation.value} label={occupation.label} value={occupation.value} />
                 ))}
               </Picker>
             </View>
@@ -400,6 +391,7 @@ export default function SignUpScreen() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -472,6 +464,12 @@ const styles = StyleSheet.create({
   },
   inputIcon: {
     marginRight: 12,
+  },
+  phonePrefix: {
+    fontSize: 16,
+    color: "#1F2937",
+    fontWeight: "600",
+    marginRight: 4,
   },
   input: {
     flex: 1,
@@ -596,5 +594,10 @@ const styles = StyleSheet.create({
   },
   modalPicker: {
     width: "100%",
+  },
+  errorText: {
+    color: "red",
+    fontSize: 13,
+    marginTop: 4,
   },
 });
