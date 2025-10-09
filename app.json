@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "wildlifewarning",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.patrick875.wildlifewarning"
