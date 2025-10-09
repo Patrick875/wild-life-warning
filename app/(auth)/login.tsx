@@ -13,7 +13,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as yup from "yup";
@@ -25,15 +25,18 @@ const loginSchema = yup.object().shape({
     .required("Email or phone is required")
     .test("is-valid", "Enter a valid email or phone", (value) => {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const phoneRegex = /^[0-9]{9,15}$/;
+      const phoneRegex = /^\+?[0-9]{9,15}$/; // Added \+? to allow optional +
       return emailRegex.test(value || "") || phoneRegex.test(value || "");
     }),
-  password: yup.string().required("Password is required").min(6, "Password must be at least 6 characters"),
+  password: yup
+    .string()
+    .required("Password is required")
+    .min(6, "Password must be at least 6 characters"),
 });
 
 export default function LoginScreen() {
   const { mutate, isPending } = useLogin();
-  const {login}=useContext(AuthContext)
+  const { login } = useContext(AuthContext);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
@@ -50,14 +53,17 @@ export default function LoginScreen() {
   });
 
   const onSubmit = (data: { identifier: string; password: string }) => {
-    mutate({
-      identifier: data.identifier.trim(),
-      password: data.password.trim(),
-    },{
-      onSuccess:(res)=>{
-        login(res.data?.access_token as string)
+    mutate(
+      {
+        identifier: data.identifier.trim(),
+        password: data.password.trim(),
+      },
+      {
+        onSuccess: (res) => {
+          login(res.data?.access_token as string);
+        },
       }
-    });
+    );
   };
 
   return (
@@ -127,7 +133,9 @@ export default function LoginScreen() {
                 />
               </View>
               {errors.identifier && (
-                <Text style={styles.errorText}>{errors.identifier.message}</Text>
+                <Text style={styles.errorText}>
+                  {errors.identifier.message}
+                </Text>
               )}
             </View>
 
@@ -219,7 +227,6 @@ export default function LoginScreen() {
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {
@@ -366,7 +373,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
-   errorText: {
+  errorText: {
     color: "red",
     fontSize: 13,
     marginTop: 4,

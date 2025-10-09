@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "wildlifewarning",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.patrick875.wildlifewarning"
@@ -21,7 +21,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.patrick875.wildlifewarning"
+      "package": "com.patrick875.wildlifewarning",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {
       "output": "static",
@@ -46,6 +47,15 @@
         {
           "configureAndroidBackup": true,
           "faceIDPermission": "Allow Wildlife-app to access your Face ID biometric data."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location to record wildlife sightings.",
+          "locationAlwaysPermission": "Allow $(PRODUCT_NAME) to access your location to record wildlife sightings.",
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location to record wildlife sightings.",
+          "isAndroidBackgroundLocationEnabled": true
         }
       ]
     ],
