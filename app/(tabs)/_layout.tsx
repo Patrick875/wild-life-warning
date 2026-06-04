@@ -1,7 +1,11 @@
-import { Tabs } from 'expo-router';
-import { TriangleAlert as AlertTriangle, Camera, Settings } from 'lucide-react-native';
-import { Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Tabs } from "expo-router";
+import {
+  TriangleAlert as AlertTriangle,
+  Camera,
+  Settings,
+} from "lucide-react-native";
+import { Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -11,25 +15,26 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: 'white',
+          backgroundColor: "white",
           borderTopWidth: 0,
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' 
-            ? insets.bottom    
-            : insets.bottom > 0 
-              ? insets.bottom 
-              : 76,
+          paddingBottom:
+            Platform.OS === "ios"
+              ? insets.bottom
+              : insets.bottom > 0
+                ? insets.bottom
+                : 76,
           minHeight: 70,
           elevation: 5, // Android shadow
-          shadowColor: '#000',
+          shadowColor: "#000",
           shadowOpacity: 0.08,
           shadowRadius: 8,
         },
-        tabBarActiveTintColor: '#22C55E',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: "#22C55E",
+        tabBarInactiveTintColor: "#9CA3AF",
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '600',
+          fontWeight: "600",
           marginTop: 4,
         },
       }}
@@ -37,22 +42,26 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Alerts',
-          tabBarIcon: ({ size, color }) => <AlertTriangle size={size} color={color} />,
+          title: "Alerts",
+          tabBarIcon: ({ size, color }) => (
+            <AlertTriangle size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="collect"
+        name="submitAlert"
         options={{
-          title: 'Collect Data',
+          title: "Submit Alert",
           tabBarIcon: ({ size, color }) => <Camera size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ size, color }) => <Settings size={size} color={color} />,
+          title: "Settings",
+          tabBarIcon: ({ size, color }) => (
+            <Settings size={size} color={color} />
+          ),
         }}
       />
     </Tabs>

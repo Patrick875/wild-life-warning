@@ -32,6 +32,7 @@ export const useLogin = () => {
 };
 
 export const useRegister = () => {
+  console.log("here");
   return useMutation({
     mutationFn: async (data: any) => {
       console.log("Register Payload:", data);

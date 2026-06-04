@@ -2,7 +2,18 @@ import { useRegister } from "@/services/auth";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { Picker } from "@react-native-picker/picker";
 import { Link } from "expo-router";
-import { ArrowLeft, Briefcase, Building2, ChevronDown, Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Briefcase,
+  Building2,
+  ChevronDown,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  Phone,
+  User,
+} from "lucide-react-native";
 import React, { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
@@ -20,14 +31,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as yup from "yup";
 
 const OCCUPATIONS = [
-  { label: "Farmer", value: "farmer" },
-  { label: "Guide", value: "guide" },
-  { label: "Other", value: "other" },
+  { label: "Farmer", value: "FARMER" },
+  { label: "Guide", value: "PARK_GUARD" },
 ];
 
 const schema = yup.object().shape({
-  full_name: yup.string().trim().required("Full name is required"),
-  phone_number: yup
+  fullName: yup.string().trim().required("Full name is required"),
+  phoneNumber: yup
     .string()
     .matches(/^[0-9]{9}$/, "Phone number must be 9 digits")
     .required("Phone number is required"),
@@ -39,7 +49,7 @@ const schema = yup.object().shape({
     .required("Password is required")
     .matches(
       /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/,
-      "Password must be at least 8 characters, include 1 uppercase, 1 lowercase, and 1 number"
+      "Password must be at least 8 characters, include 1 uppercase, 1 lowercase, and 1 number",
     ),
   password_confirm: yup
     .string()
@@ -64,8 +74,8 @@ export default function SignUpScreen() {
   } = useForm({
     resolver: yupResolver(schema),
     defaultValues: {
-      full_name: "",
-      phone_number: "",
+      fullName: "",
+      phoneNumber: "",
       occupation: "",
       organization: "",
       email: "",
@@ -74,14 +84,17 @@ export default function SignUpScreen() {
     },
   });
 
-  const phoneDigits = watch("phone_number");
+  // const phoneDigits = watch("phoneNumber");
 
   const onSubmit = (data: any) => {
     const payload = {
       ...data,
-      phone_number: `+250${data.phone_number}`,
+      phoneNumber: `${data.phoneNumber}`,
+      email: `email-${Math.ceil(Math.random() * 3)}@emai.com`,
+      role: data.occupation,
     };
-    mutate(payload);
+    const { password_confirm, ...submitablePay } = payload;
+    mutate(submitablePay);
   };
 
   const handleOccupationConfirm = () => {
@@ -101,7 +114,7 @@ export default function SignUpScreen() {
               <ArrowLeft size={24} color="#22C55E" />
             </TouchableOpacity>
           </Link>
-          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.title}>Login</Text>
         </View>
 
         <ScrollView
@@ -111,24 +124,29 @@ export default function SignUpScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.form}>
-            <Text style={styles.subtitle}>Join us and start your journey today</Text>
+            <Text style={styles.subtitle}>
+              Join us and start your journey today
+            </Text>
 
             {/* Full Name */}
             <Controller
               control={control}
-              name="full_name"
+              name="fullName"
               render={({ field: { onChange, value } }) => (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Full Name</Text>
                   <View
                     style={[
                       styles.inputContainer,
-                      focusedInput === "full_name" && styles.inputContainerFocused,
+                      focusedInput === "full_name" &&
+                        styles.inputContainerFocused,
                     ]}
                   >
                     <User
                       size={20}
-                      color={focusedInput === "full_name" ? "#22C55E" : "#9CA3AF"}
+                      color={
+                        focusedInput === "full_name" ? "#22C55E" : "#9CA3AF"
+                      }
                       style={styles.inputIcon}
                     />
                     <TextInput
@@ -142,7 +160,11 @@ export default function SignUpScreen() {
                       autoCapitalize="words"
                     />
                   </View>
-                  {errors.full_name && <Text style={styles.errorText}>{errors.full_name.message}</Text>}
+                  {errors.fullName && (
+                    <Text style={styles.errorText}>
+                      {errors.fullName.message}
+                    </Text>
+                  )}
                 </View>
               )}
             />
@@ -150,22 +172,25 @@ export default function SignUpScreen() {
             {/* Phone Number */}
             <Controller
               control={control}
-              name="phone_number"
+              name="phoneNumber"
               render={({ field: { onChange, value } }) => (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Phone Number</Text>
                   <View
                     style={[
                       styles.inputContainer,
-                      focusedInput === "phone_number" && styles.inputContainerFocused,
+                      focusedInput === "phone_number" &&
+                        styles.inputContainerFocused,
                     ]}
                   >
                     <Phone
                       size={20}
-                      color={focusedInput === "phone_number" ? "#22C55E" : "#9CA3AF"}
+                      color={
+                        focusedInput === "phone_number" ? "#22C55E" : "#9CA3AF"
+                      }
                       style={styles.inputIcon}
                     />
-                    <Text style={styles.phonePrefix}>+250</Text>
+                    {/* <Text style={styles.phonePrefix}>+250</Text> */}
                     <TextInput
                       style={styles.input}
                       keyboardType="phone-pad"
@@ -181,7 +206,11 @@ export default function SignUpScreen() {
                       maxLength={9}
                     />
                   </View>
-                  {errors.phone_number && <Text style={styles.errorText}>{errors.phone_number.message}</Text>}
+                  {errors.phoneNumber && (
+                    <Text style={styles.errorText}>
+                      {errors.phoneNumber.message}
+                    </Text>
+                  )}
                 </View>
               )}
             />
@@ -201,7 +230,11 @@ export default function SignUpScreen() {
                     }}
                   >
                     <View style={styles.pickerButtonContent}>
-                      <Briefcase size={20} color="#9CA3AF" style={styles.inputIcon} />
+                      <Briefcase
+                        size={20}
+                        color="#9CA3AF"
+                        style={styles.inputIcon}
+                      />
                       <Text
                         style={[
                           styles.pickerButtonText,
@@ -209,13 +242,18 @@ export default function SignUpScreen() {
                         ]}
                       >
                         {value
-                          ? OCCUPATIONS.find((occ) => occ.value === value)?.label
+                          ? OCCUPATIONS.find((occ) => occ.value === value)
+                              ?.label
                           : "Select your occupation"}
                       </Text>
                     </View>
                     <ChevronDown size={20} color="#6B7280" />
                   </TouchableOpacity>
-                  {errors.occupation && <Text style={styles.errorText}>{errors.occupation.message}</Text>}
+                  {errors.occupation && (
+                    <Text style={styles.errorText}>
+                      {errors.occupation.message}
+                    </Text>
+                  )}
                 </View>
               )}
             />
@@ -230,12 +268,15 @@ export default function SignUpScreen() {
                   <View
                     style={[
                       styles.inputContainer,
-                      focusedInput === "organization" && styles.inputContainerFocused,
+                      focusedInput === "organization" &&
+                        styles.inputContainerFocused,
                     ]}
                   >
                     <Building2
                       size={20}
-                      color={focusedInput === "organization" ? "#22C55E" : "#9CA3AF"}
+                      color={
+                        focusedInput === "organization" ? "#22C55E" : "#9CA3AF"
+                      }
                       style={styles.inputIcon}
                     />
                     <TextInput
@@ -248,7 +289,11 @@ export default function SignUpScreen() {
                       placeholderTextColor="#9CA3AF"
                     />
                   </View>
-                  {errors.organization && <Text style={styles.errorText}>{errors.organization.message}</Text>}
+                  {errors.organization && (
+                    <Text style={styles.errorText}>
+                      {errors.organization.message}
+                    </Text>
+                  )}
                 </View>
               )}
             />
@@ -272,7 +317,9 @@ export default function SignUpScreen() {
                       autoCapitalize="none"
                     />
                   </View>
-                  {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+                  {errors.email && (
+                    <Text style={styles.errorText}>{errors.email.message}</Text>
+                  )}
                 </View>
               )}
             />
@@ -305,7 +352,11 @@ export default function SignUpScreen() {
                       )}
                     </TouchableOpacity>
                   </View>
-                  {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+                  {errors.password && (
+                    <Text style={styles.errorText}>
+                      {errors.password.message}
+                    </Text>
+                  )}
                 </View>
               )}
             />
@@ -328,7 +379,9 @@ export default function SignUpScreen() {
                       secureTextEntry={!showConfirmPassword}
                     />
                     <TouchableOpacity
-                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onPress={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                       style={styles.eyeIcon}
                     >
                       {showConfirmPassword ? (
@@ -339,7 +392,9 @@ export default function SignUpScreen() {
                     </TouchableOpacity>
                   </View>
                   {errors.password_confirm && (
-                    <Text style={styles.errorText}>{errors.password_confirm.message}</Text>
+                    <Text style={styles.errorText}>
+                      {errors.password_confirm.message}
+                    </Text>
                   )}
                 </View>
               )}
@@ -347,7 +402,10 @@ export default function SignUpScreen() {
 
             {/* Submit */}
             <TouchableOpacity
-              style={[styles.signUpButton, isPending && styles.signUpButtonDisabled]}
+              style={[
+                styles.signUpButton,
+                isPending && styles.signUpButtonDisabled,
+              ]}
               onPress={handleSubmit(onSubmit)}
               disabled={isPending}
             >
@@ -368,7 +426,9 @@ export default function SignUpScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={() => setShowOccupationPicker(false)}>
+                <TouchableOpacity
+                  onPress={() => setShowOccupationPicker(false)}
+                >
                   <Text style={styles.modalCancelButton}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={styles.modalTitle}>Select Occupation</Text>
@@ -381,7 +441,11 @@ export default function SignUpScreen() {
                 onValueChange={(itemValue) => setTempOccupation(itemValue)}
               >
                 {OCCUPATIONS.map((occupation) => (
-                  <Picker.Item key={occupation.value} label={occupation.label} value={occupation.value} />
+                  <Picker.Item
+                    key={occupation.value}
+                    label={occupation.label}
+                    value={occupation.value}
+                  />
                 ))}
               </Picker>
             </View>
@@ -391,7 +455,6 @@ export default function SignUpScreen() {
     </SafeAreaView>
   );
 }
-
 
 const styles = StyleSheet.create({
   container: {

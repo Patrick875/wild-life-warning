@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { createContext, ReactNode, useEffect, useState } from "react";
 import { router } from "expo-router";
+import { createContext, ReactNode, useEffect, useState } from "react";
 type IAuthContext = {
   userToken: string | null;
   login: (token: string) => void;
@@ -18,11 +18,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadToken = async () => {
       const token = await AsyncStorage.getItem("userToken");
+
       if (token) setUserToken(token);
     };
     loadToken();
   }, []);
   const login = async (token: string) => {
+    if (!token) return;
     await AsyncStorage.setItem("userToken", token);
     setUserToken(token);
   };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context'
 import { TriangleAlert as AlertTriangle, MapPin, Clock, ChevronRight } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { wildlifeApi } from '@/services/api';
 import { WildlifeAlert } from '@/types/wildlife';
 
@@ -16,9 +17,9 @@ export default function AlertsScreen() {
   const [alerts, setAlerts] = useState<WildlifeAlert[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     loadAlerts();
-  }, []);
+  }, []));
 
   const loadAlerts = async () => {
     try {
@@ -105,7 +106,7 @@ export default function AlertsScreen() {
             <AlertTriangle size={48} color="#9CA3AF" />
             <Text style={styles.emptyTitle}>No alerts in your area</Text>
             <Text style={styles.emptyText}>
-              We'll notify you when there's wildlife activity nearby
+              {"We'll notify you when there's wildlife activity nearby"}
             </Text>
           </View>
         )}
