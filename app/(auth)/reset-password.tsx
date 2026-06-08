@@ -1,34 +1,34 @@
-import React, { useState } from 'react';
+import { Link } from "expo-router";
+import { ArrowLeft } from "lucide-react-native";
+import React, { useState } from "react";
 import {
-  View,
+  Alert,
+  SafeAreaView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  Alert,
-} from 'react-native';
-import { Link } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+  View,
+} from "react-native";
 
 export default function ResetPasswordScreen() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
 
   const handleResetPassword = async () => {
     if (!email) {
-      Alert.alert('Error', 'Please enter your email address');
+      Alert.alert("Error", "Please enter your email address");
       return;
     }
-    
+
     // TODO: Implement actual password reset logic
-    console.log('Reset password for:', email);
-    Alert.alert('Success', 'Password reset instructions sent to your email');
+
+    Alert.alert("Success", "Password reset instructions sent to your email");
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Link href="/welcome" asChild>
+        <Link href="/" asChild>
           <TouchableOpacity style={styles.backButton}>
             <ArrowLeft size={24} color="#22C55E" />
           </TouchableOpacity>
@@ -38,7 +38,8 @@ export default function ResetPasswordScreen() {
 
       <View style={styles.content}>
         <Text style={styles.description}>
-          Enter your email address and we'll send you instructions to reset your password.
+          Enter your email address and we'll send you instructions to reset your
+          password.
         </Text>
 
         <View style={styles.inputGroup}>
@@ -53,7 +54,10 @@ export default function ResetPasswordScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.resetButton} onPress={handleResetPassword}>
+        <TouchableOpacity
+          style={styles.resetButton}
+          onPress={handleResetPassword}
+        >
           <Text style={styles.resetButtonText}>Send Reset Instructions</Text>
         </TouchableOpacity>
 
@@ -73,11 +77,11 @@ export default function ResetPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: "white",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 24,
     paddingTop: 16,
     paddingBottom: 32,
@@ -87,8 +91,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontWeight: "bold",
+    color: "#1F2937",
   },
   content: {
     flex: 1,
@@ -96,7 +100,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 24,
     marginBottom: 32,
   },
@@ -105,44 +109,44 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
+    fontWeight: "600",
+    color: "#374151",
     marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: "#D1D5DB",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
   },
   resetButton: {
-    backgroundColor: '#22C55E',
+    backgroundColor: "#22C55E",
     paddingVertical: 16,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 16,
   },
   resetButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 24,
   },
   footerText: {
-    color: '#6B7280',
+    color: "#6B7280",
     fontSize: 16,
   },
   signInLink: {
-    color: '#22C55E',
+    color: "#22C55E",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

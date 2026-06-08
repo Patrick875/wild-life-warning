@@ -1,32 +1,141 @@
-import React, { useCallback, useState } from 'react';
+import AlertCard from "@/components/AlertCard";
+import LocationCard from "@/components/LocationCard";
+import { useLocation } from "@/hooks/use-location";
+import { wildlifeApi } from "@/services/api";
+import { setSelectedAlert } from "@/services/selectedAlert";
+import { WildlifeAlert } from "@/types/wildlife";
+import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
+import { TriangleAlert as AlertTriangle, Bell } from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
+  Animated,
+  Easing,
+  Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
+  Text,
   TouchableOpacity,
-  RefreshControl,
-} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context'
-import { TriangleAlert as AlertTriangle, MapPin, Clock, ChevronRight } from 'lucide-react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { wildlifeApi } from '@/services/api';
-import { WildlifeAlert } from '@/types/wildlife';
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+type tab = "nearMe" | "submittedByMe";
+
+type AnimatedAlertCardProps = {
+  alert: WildlifeAlert;
+  isNew: boolean;
+  location?: {
+    lat?: number;
+    lng?: number;
+  };
+  onPress: () => void;
+};
+
+const AnimatedAlertCard = ({
+  alert,
+  isNew,
+  location,
+  onPress,
+}: AnimatedAlertCardProps) => {
+  const entrance = useRef(new Animated.Value(isNew ? 0 : 1)).current;
+  const shimmer = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isNew) {
+      entrance.setValue(1);
+      shimmer.setValue(0);
+      return;
+    }
+
+    entrance.setValue(0);
+    shimmer.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(entrance, {
+        toValue: 1,
+        duration: 520,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(180),
+        Animated.timing(shimmer, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, [entrance, isNew, shimmer]);
+
+  const translateY = entrance.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-18, 0],
+  });
+  const scale = entrance.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.97, 1],
+  });
+  const glowOpacity = shimmer.interpolate({
+    inputRange: [0, 0.25, 1],
+    outputRange: [0, 0.28, 0],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.animatedAlert,
+        {
+          opacity: entrance,
+          transform: [{ translateY }, { scale }],
+        },
+      ]}
+    >
+      {isNew && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.newAlertGlow, { opacity: glowOpacity }]}
+        />
+      )}
+      <AlertCard alert={alert} location={location} onPress={onPress} />
+    </Animated.View>
+  );
+};
 
 export default function AlertsScreen() {
+  const { location, normalized_location } = useLocation();
   const [alerts, setAlerts] = useState<WildlifeAlert[]>([]);
+  const [newAlertIds, setNewAlertIds] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<tab>("nearMe");
   const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedAlerts = useRef(false);
+  const alertIdsRef = useRef<Set<string>>(new Set());
 
-  useFocusEffect(useCallback(() => {
-    loadAlerts();
-  }, []));
+  useFocusEffect(
+    useCallback(() => {
+      loadAlerts();
+    }, []),
+  );
 
   const loadAlerts = async () => {
     try {
       const data = await wildlifeApi.getAlerts();
+      const nextIds = new Set(data.map((alert) => String(alert.id)));
+      const incomingIds = hasLoadedAlerts.current
+        ? data
+            .filter((alert) => !alertIdsRef.current.has(String(alert.id)))
+            .map((alert) => String(alert.id))
+        : [];
+
+      setNewAlertIds(new Set(incomingIds));
+      alertIdsRef.current = nextIds;
+      hasLoadedAlerts.current = true;
       setAlerts(data);
     } catch (error) {
-      console.error('Failed to load alerts:', error);
+      console.error("Failed to load alerts:", error);
     }
   };
 
@@ -36,34 +145,25 @@ export default function AlertsScreen() {
     setRefreshing(false);
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'high': return '#EF4444';
-      case 'medium': return '#F97316';
-      case 'low': return '#22C55E';
-      default: return '#6B7280';
-    }
-  };
-
-  const formatTimeAgo = (timestamp: string) => {
-    const now = new Date();
-    const alertTime = new Date(timestamp);
-    const diffInHours = Math.floor((now.getTime() - alertTime.getTime()) / (1000 * 60 * 60));
-    
-    if (diffInHours < 1) return 'Just now';
-    if (diffInHours === 1) return '1 hour ago';
-    if (diffInHours < 24) return `${diffInHours} hours ago`;
-    
-    const diffInDays = Math.floor(diffInHours / 24);
-    if (diffInDays === 1) return '1 day ago';
-    return `${diffInDays} days ago`;
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Wildlife Alerts</Text>
-        <Text style={styles.subtitle}>Recent activity in your area</Text>
+        <View style={styles.topHeader}>
+          <View style={styles.logoContainer}>
+            <View>
+              <Image
+                source={require("@/assets/images/new-logo.png")}
+                style={{ width: 36, height: 36 }}
+              />
+            </View>
+            <View>
+              <Text style={styles.title}>Wild Guard</Text>
+            </View>
+          </View>
+          <View>
+            <Bell />
+          </View>
+        </View>
       </View>
 
       <ScrollView
@@ -72,35 +172,69 @@ export default function AlertsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {alerts.map((alert) => (
-          <TouchableOpacity key={alert.id} style={styles.alertCard}>
-            <View style={styles.alertHeader}>
-              <View style={[
-                styles.severityIndicator,
-                { backgroundColor: getSeverityColor(alert.severity) }
-              ]} />
-              <View style={styles.alertInfo}>
-                <Text style={styles.alertTitle}>{alert.title}</Text>
-                <Text style={styles.alertSpecies}>{alert.species}</Text>
-              </View>
-              <ChevronRight size={20} color="#9CA3AF" />
-            </View>
-            
-            <Text style={styles.alertDescription}>{alert.description}</Text>
-            
-            <View style={styles.alertFooter}>
-              <View style={styles.alertMeta}>
-                <MapPin size={16} color="#6B7280" />
-                <Text style={styles.alertLocation}>{alert.location}</Text>
-              </View>
-              <View style={styles.alertMeta}>
-                <Clock size={16} color="#6B7280" />
-                <Text style={styles.alertTime}>{formatTimeAgo(alert.timestamp)}</Text>
-              </View>
-            </View>
+        <LocationCard
+          location={location}
+          normalized_location={normalized_location}
+        />
+        <View style={styles.tabs}>
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "nearMe" && styles.activeTab,
+            ]}
+            onPress={() => setActiveTab("nearMe")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "nearMe" && styles.activeTabText,
+              ]}
+            >
+              Alerts
+            </Text>
           </TouchableOpacity>
-        ))}
-        
+
+          <TouchableOpacity
+            style={[
+              styles.tabButton,
+              activeTab === "submittedByMe" && styles.activeTab,
+            ]}
+            onPress={() => setActiveTab("submittedByMe")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === "submittedByMe" && styles.activeTabText,
+              ]}
+            >
+              My reports
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === "nearMe" ? (
+          alerts.map((alert) => (
+            <AnimatedAlertCard
+              alert={alert}
+              key={alert.id}
+              isNew={newAlertIds.has(String(alert.id))}
+              onPress={() => {
+                setSelectedAlert(alert);
+                router.push({
+                  pathname: "/alert-details",
+                  params: { id: alert.id },
+                });
+              }}
+              location={{
+                lat: location?.coords?.latitude,
+                lng: location?.coords?.longitude,
+              }}
+            />
+          ))
+        ) : (
+          <Text>Submitted by me</Text>
+        )}
+
         {alerts.length === 0 && (
           <View style={styles.emptyState}>
             <AlertTriangle size={48} color="#9CA3AF" />
@@ -118,101 +252,93 @@ export default function AlertsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
+  },
+  animatedAlert: {
+    position: "relative",
+  },
+  newAlertGlow: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    bottom: 12,
+    left: -4,
+    borderRadius: 20,
+    backgroundColor: "#22C55E",
+  },
+  tabs: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  activeTab: {
+    backgroundColor: "#2d5a27",
+  },
+
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+
+  activeTabText: {
+    color: "#FFF",
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 24,
-    backgroundColor: 'white',
+    paddingTop: 12,
+    paddingBottom: 12,
+    backgroundColor: "white",
+  },
+  topHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  logoContainer: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1F2937',
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#2d5a27",
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
   },
-  alertCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  alertHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  severityIndicator: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
-  },
-  alertInfo: {
-    flex: 1,
-  },
-  alertTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 2,
-  },
-  alertSpecies: {
-    fontSize: 14,
-    color: '#22C55E',
-    fontWeight: '500',
-  },
-  alertDescription: {
-    fontSize: 16,
-    color: '#4B5563',
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  alertFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  alertMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  alertLocation: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginLeft: 4,
-  },
-  alertTime: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginLeft: 4,
-  },
   emptyState: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingVertical: 64,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#4B5563',
+    fontWeight: "600",
+    color: "#4B5563",
     marginTop: 16,
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
-    color: '#6B7280',
-    textAlign: 'center',
+    color: "#6B7280",
+    textAlign: "center",
     lineHeight: 22,
   },
 });

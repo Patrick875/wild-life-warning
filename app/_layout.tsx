@@ -11,7 +11,6 @@ const queryClient = new QueryClient();
 
 function RootNavigator() {
   const { userToken } = useContext(AuthContext);
-  console.log("user token", userToken);
 
   return (
     <>
@@ -21,6 +20,7 @@ function RootNavigator() {
         ) : (
           <Stack.Screen name="(auth)" />
         )}
+        <Stack.Screen name="alert-details" />
         <Stack.Screen name="+not-found" />
       </Stack>
       <Toast />

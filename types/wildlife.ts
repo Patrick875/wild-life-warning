@@ -2,10 +2,25 @@ export interface WildlifeAlert {
   id: string;
   title: string;
   species: string;
+  count?: string;
   description: string;
-  location: string;
-  severity: 'low' | 'medium' | 'high';
+  location?: { lat: number | undefined; lng: number | undefined };
+  submittedBy?: string;
+  severity: "low" | "medium" | "high" | "critical";
   timestamp: string;
+  behavior?: string;
+  evidence?: AlertEvidence[];
+  rawSubmission?: Record<string, any>;
+}
+
+export interface AlertEvidence {
+  uri?: string;
+  url?: string;
+  name?: string;
+  mimeType?: string;
+  size?: string | number;
+  type?: string;
+  timestamp?: string | number;
 }
 
 export interface WildlifeObservation {
@@ -30,7 +45,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'researcher' | 'citizen' | 'admin';
+  role: "researcher" | "citizen" | "admin";
   profileImage?: string;
   organization?: string;
   verified: boolean;

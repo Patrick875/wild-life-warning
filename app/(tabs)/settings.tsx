@@ -1,24 +1,24 @@
-import React, { useContext, useState } from "react";
+import { AuthContext } from "@/context/AuthContext";
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Switch,
-  Alert,
-  SectionList,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  User,
   Bell,
-  MapPin,
-  Shield,
+  ChevronRight,
   CircleHelp as HelpCircle,
   LogOut,
-  ChevronRight,
+  MapPin,
+  Shield,
+  User,
 } from "lucide-react-native";
-import { AuthContext } from "@/context/AuthContext";
+import React, { useContext, useState } from "react";
+import {
+  Alert,
+  SectionList,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SettingItemProps {
   icon: any;
@@ -49,7 +49,7 @@ export default function SettingsScreen() {
         text: "Logout",
         style: "destructive",
         onPress: () => {
-          console.log("Logout");
+          // console.log("Logout");
           logout();
         },
       },

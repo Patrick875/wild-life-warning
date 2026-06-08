@@ -75,8 +75,8 @@ export const fetchFormDetails = async (formUid: string) => {
 };
 
 const localApiHost = Platform.OS === "android" ? "10.0.2.2" : "localhost";
-const baseUrl = `http://${localApiHost}:4800/api/v1`;
-// const baseUrl = "https://wild-life-conserv-2.onrender.com/api/v1";
+// export const baseUrl = `http://${localApiHost}:4800/api/v1`;
+export const baseUrl = "https://wild-life-conserv-2.onrender.com/api/v1";
 export const alertsFormUid = "aFVTJLbCSxe3ixGxNoAMBU";
 export const api = axios.create({
   baseURL: baseUrl,
@@ -90,40 +90,130 @@ const getSubmissionValue = (
     const normalizedKey = key.toLowerCase();
     return fieldNames.some(
       (fieldName) =>
-        normalizedKey === fieldName || normalizedKey.endsWith(`/${fieldName}`),
+        normalizedKey === fieldName.toLowerCase() ||
+        normalizedKey.endsWith(`/${fieldName.toLowerCase()}`),
     );
   });
   return entry?.[1];
 };
 
-const formatLocation = (value: unknown) => {
-  if (typeof value === "string") return value;
+const parseLocation = (value: unknown) => {
+  if (typeof value === "string") {
+    const parts = value.split(/[,\s]+/).filter(Boolean);
+    return {
+      lat: Number(parts[0]),
+      lng: Number(parts[1]),
+    };
+  }
+
   if (typeof value === "object" && value !== null) {
     const location = value as Record<string, unknown>;
     if (location.latitude != null && location.longitude != null) {
-      return `${location.latitude}, ${location.longitude}`;
+      return {
+        lat: Number(location.latitude),
+        lng: Number(location.longitude),
+      };
     }
   }
-  return "Location not provided";
+
+  return { lat: undefined, lng: undefined };
+};
+
+const pluralizeSpecies = (species: string, count: string) => {
+  const numericCount = Number(count);
+  if (!Number.isFinite(numericCount) || numericCount === 1) return species;
+  if (species.toLowerCase().endsWith("s")) return species;
+  return `${species}s`;
+};
+
+const normalizeEvidence = (value: unknown) => {
+  const parsedValue =
+    typeof value === "string" && value.trim().length > 0
+      ? (() => {
+          try {
+            return JSON.parse(value);
+          } catch {
+            return [];
+          }
+        })()
+      : value;
+
+  if (!Array.isArray(parsedValue)) return [];
+
+  return parsedValue.map((item) => {
+    if (typeof item !== "object" || item === null) return {};
+    const media = item as Record<string, any>;
+    return {
+      uri: media.uri || media["evidence/uri"],
+      url: media.url || media["evidence/url"],
+      name: media.name || media["evidence/name"],
+      mimeType: media.mimeType || media["evidence/mimeType"],
+      size: media.size || media["evidence/size"],
+      type: media.type || media["evidence/type"],
+      timestamp: media.timestamp || media["evidence/timestamp"],
+    };
+  });
 };
 
 const mapSubmissionToAlert = (
   submission: Record<string, any>,
   index: number,
 ): WildlifeAlert => {
-  const submissionData =
+  const nestedSubmissionData =
     typeof submission.submission_data === "object" &&
     submission.submission_data !== null
       ? submission.submission_data
       : {};
+  const submissionData = { ...nestedSubmissionData, ...submission };
   const species =
-    getSubmissionValue(submissionData, ["species", "animal", "wildlife"]) ||
-    "Wildlife";
-  const severityValue = getSubmissionValue(submissionData, ["severity"]);
+    getSubmissionValue(submissionData, [
+      "species",
+      "animal",
+      "What_animal_have_you_red_or_seen_signs_of",
+    ]) || "Wild animals";
+  const count =
+    getSubmissionValue(submissionData, [
+      "number_of_animals",
+      "How_many_did_encounter",
+    ]) || "1";
+  const behavior =
+    getSubmissionValue(submissionData, [
+      "behaviour",
+      "behavior",
+      "bahaviour",
+      "How_where_the_animal_behaving",
+    ]) || "";
+  const description =
+    getSubmissionValue(submissionData, [
+      "observation",
+      "description",
+      "Field_Observations",
+    ]) || "A wildlife sighting has been submitted.";
+  const severityValue = String(
+    getSubmissionValue(submissionData, [
+      "threat_level",
+      "Urgency_Level",
+      "threat_Level",
+    ]) || "",
+  ).toLowerCase();
+  const evidence = normalizeEvidence(
+    getSubmissionValue(submissionData, [
+      "evidence",
+      "eveidence",
+      "Evidence_Media",
+    ]),
+  );
+  const title =
+    `${count} ${pluralizeSpecies(String(species), String(count))} reported` ||
+    "Wildlife reported";
+
   const severity =
-    severityValue === "high" || severityValue === "low"
+    severityValue === "high" ||
+    severityValue === "low" ||
+    severityValue === "critical"
       ? severityValue
       : "medium";
+  const parsedLocation = parseLocation(submissionData.location);
 
   return {
     id: String(
@@ -133,20 +223,18 @@ const mapSubmissionToAlert = (
         submission.submitted_at ||
         `submission-${index}`,
     ),
-    title: `${species} activity reported`,
+    title: title,
     species: String(species),
-    description: String(
-      getSubmissionValue(submissionData, [
-        "description",
-        "notes",
-        "behavior",
-      ]) || "A wildlife sighting has been submitted.",
-    ),
-    location: formatLocation(
-      getSubmissionValue(submissionData, ["location", "coordinates"]),
-    ),
+    count: String(count),
+    description: String(description),
+    location: parsedLocation,
+    submittedBy: submission?._submitted_by,
     severity,
+    behavior: String(behavior),
+    evidence,
+    rawSubmission: submission,
     timestamp:
+      submission._submission_time ||
       submission.submitted_at ||
       submission.created_at ||
       new Date().toISOString(),
@@ -169,7 +257,15 @@ class WildlifeAPI {
     if (!Array.isArray(submissions)) {
       console.log("Unexpected submissions response");
     }
-    return submissions?.map?.(mapSubmissionToAlert) || [];
+    const sorted =
+      submissions
+        ?.map?.(mapSubmissionToAlert)
+        ?.sort(
+          (a: any, b: any) =>
+            new Date(b?.timestamp).getTime() - new Date(a?.timestamp).getTime(),
+        ) || [];
+
+    return sorted;
   }
 
   async submitObservation(observation: any) {

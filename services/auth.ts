@@ -32,16 +32,16 @@ export const useLogin = () => {
 };
 
 export const useRegister = () => {
-  console.log("here");
+  // console.log("here");
   return useMutation({
     mutationFn: async (data: any) => {
-      console.log("Register Payload:", data);
+      // console.log("Register Payload:", data);
       return await api.post("/auth/register", data, {
         headers: { "Content-Type": "application/json" },
       });
     },
     onSuccess: (res) => {
-      console.log("register-result", res);
+      // console.log("register-result", res);
       Toast.show({
         type: "success",
         text1: "Registration Successful",
