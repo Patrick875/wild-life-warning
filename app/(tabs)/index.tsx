@@ -1,7 +1,8 @@
 import AlertCard from "@/components/AlertCard";
 import LocationCard from "@/components/LocationCard";
 import { useLocation } from "@/hooks/use-location";
-import { wildlifeApi } from "@/services/api";
+import { useGetAlerts, useGetMyAlerts } from "@/services/alert";
+import { alertsFormUid } from "@/services/api";
 import { setSelectedAlert } from "@/services/selectedAlert";
 import { WildlifeAlert } from "@/types/wildlife";
 import { useFocusEffect } from "@react-navigation/native";
@@ -30,14 +31,16 @@ type AnimatedAlertCardProps = {
     lat?: number;
     lng?: number;
   };
-  onPress: () => void;
+  onDetailsPress: () => void;
+  onFeedbackPress: () => void;
 };
 
 const AnimatedAlertCard = ({
   alert,
   isNew,
   location,
-  onPress,
+  onDetailsPress,
+  onFeedbackPress,
 }: AnimatedAlertCardProps) => {
   const entrance = useRef(new Animated.Value(isNew ? 0 : 1)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
@@ -100,49 +103,45 @@ const AnimatedAlertCard = ({
           style={[styles.newAlertGlow, { opacity: glowOpacity }]}
         />
       )}
-      <AlertCard alert={alert} location={location} onPress={onPress} />
+      <AlertCard
+        alert={alert}
+        location={location}
+        onDetailsPress={onDetailsPress}
+        onFeedbackPress={onFeedbackPress}
+      />
     </Animated.View>
   );
 };
 
 export default function AlertsScreen() {
-  const { location, normalized_location } = useLocation();
-  const [alerts, setAlerts] = useState<WildlifeAlert[]>([]);
-  const [newAlertIds, setNewAlertIds] = useState<Set<string>>(new Set());
+  const { location, normalized_location, errorMsg: locationError } = useLocation();
+
+  const [newAlertIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<tab>("nearMe");
   const [refreshing, setRefreshing] = useState(false);
-  const hasLoadedAlerts = useRef(false);
-  const alertIdsRef = useRef<Set<string>>(new Set());
+
+  const { data: alerts = [], refetch: refetchAlerts } = useGetAlerts({
+    formId: alertsFormUid,
+  });
+  const { data: myAlerts = [], refetch: refetchMyAlerts } = useGetMyAlerts({
+    formId: alertsFormUid,
+  });
+  const visibleAlerts = activeTab === "nearMe" ? alerts : myAlerts;
 
   useFocusEffect(
     useCallback(() => {
-      loadAlerts();
-    }, []),
+      if (activeTab === "nearMe") {
+        refetchAlerts();
+        return;
+      }
+      refetchMyAlerts();
+    }, [activeTab, refetchAlerts, refetchMyAlerts]),
   );
 
-  const loadAlerts = async () => {
-    try {
-      const data = await wildlifeApi.getAlerts();
-      const nextIds = new Set(data.map((alert) => String(alert.id)));
-      const incomingIds = hasLoadedAlerts.current
-        ? data
-            .filter((alert) => !alertIdsRef.current.has(String(alert.id)))
-            .map((alert) => String(alert.id))
-        : [];
-
-      setNewAlertIds(new Set(incomingIds));
-      alertIdsRef.current = nextIds;
-      hasLoadedAlerts.current = true;
-      setAlerts(data);
-    } catch (error) {
-      console.error("Failed to load alerts:", error);
-    }
-  };
-
-  const onRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    await loadAlerts();
-    setRefreshing(false);
+    const refetch = activeTab === "nearMe" ? refetchAlerts : refetchMyAlerts;
+    refetch().finally(() => setRefreshing(false));
   };
 
   return (
@@ -175,6 +174,7 @@ export default function AlertsScreen() {
         <LocationCard
           location={location}
           normalized_location={normalized_location}
+          errorMsg={locationError}
         />
         <View style={styles.tabs}>
           <TouchableOpacity
@@ -212,35 +212,44 @@ export default function AlertsScreen() {
           </TouchableOpacity>
         </View>
 
-        {activeTab === "nearMe" ? (
-          alerts.map((alert) => (
-            <AnimatedAlertCard
-              alert={alert}
-              key={alert.id}
-              isNew={newAlertIds.has(String(alert.id))}
-              onPress={() => {
-                setSelectedAlert(alert);
-                router.push({
-                  pathname: "/alert-details",
-                  params: { id: alert.id },
-                });
-              }}
-              location={{
-                lat: location?.coords?.latitude,
-                lng: location?.coords?.longitude,
-              }}
-            />
-          ))
-        ) : (
-          <Text>Submitted by me</Text>
-        )}
+        {visibleAlerts.map((alert: WildlifeAlert) => (
+          <AnimatedAlertCard
+            alert={alert}
+            key={alert.id}
+            isNew={newAlertIds.has(String(alert.id))}
+            onDetailsPress={() => {
+              setSelectedAlert(alert);
+              router.push({
+                pathname: "/alert-details",
+                params: { id: alert.id },
+              });
+            }}
+            onFeedbackPress={() => {
+              setSelectedAlert(alert);
+              router.push({
+                pathname: "/warning-feedbacks",
+                params: { id: alert.id, compose: "1" },
+              });
+            }}
+            location={{
+              lat: location?.coords?.latitude,
+              lng: location?.coords?.longitude,
+            }}
+          />
+        ))}
 
-        {alerts.length === 0 && (
+        {visibleAlerts.length === 0 && (
           <View style={styles.emptyState}>
             <AlertTriangle size={48} color="#9CA3AF" />
-            <Text style={styles.emptyTitle}>No alerts in your area</Text>
+            <Text style={styles.emptyTitle}>
+              {activeTab === "nearMe"
+                ? "No alerts in your area"
+                : "No reports submitted yet"}
+            </Text>
             <Text style={styles.emptyText}>
-              {"We'll notify you when there's wildlife activity nearby"}
+              {activeTab === "nearMe"
+                ? "We'll notify you when there's wildlife activity nearby"
+                : "Your submitted wildlife warnings will show up here"}
             </Text>
           </View>
         )}

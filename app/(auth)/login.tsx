@@ -1,7 +1,8 @@
 import { AuthContext } from "@/context/AuthContext";
+import { UserContext } from "@/context/UserContext";
 import { useLogin } from "@/services/auth";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { Link } from "expo-router";
+import { Link, useRouter } from "expo-router";
 import { ArrowLeft, Eye, EyeOff, Lock, Mail } from "lucide-react-native";
 import React, { useContext, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -35,8 +36,10 @@ const loginSchema = yup.object().shape({
 });
 
 export default function LoginScreen() {
+  const router = useRouter();
   const { mutate, isPending } = useLogin();
   const { login } = useContext(AuthContext);
+  const { setCurrentUser } = useContext(UserContext);
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
@@ -60,9 +63,13 @@ export default function LoginScreen() {
       },
       {
         onSuccess: (res) => {
-          login(res.data?.access_token as string);
+          setCurrentUser(res?.data?.data?.user);
+          login(res.data?.data?.access_token as string);
+          if (res?.data?.data?.user) {
+            router.push("/(tabs)");
+          }
         },
-      }
+      },
     );
   };
 
@@ -214,7 +221,9 @@ export default function LoginScreen() {
 
             {/* Sign Up Link */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>
+                {"Don't have an account? "}
+              </Text>
               <Link href="/(auth)/signup" asChild>
                 <TouchableOpacity>
                   <Text style={styles.signUpLink}>Sign Up</Text>

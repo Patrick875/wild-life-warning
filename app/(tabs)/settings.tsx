@@ -1,3 +1,4 @@
+import ProfileCard from "@/components/ProfileCard";
 import { AuthContext } from "@/context/AuthContext";
 import {
   Bell,
@@ -49,7 +50,6 @@ export default function SettingsScreen() {
         text: "Logout",
         style: "destructive",
         onPress: () => {
-          // console.log("Logout");
           logout();
         },
       },
@@ -88,14 +88,14 @@ export default function SettingsScreen() {
           icon: User,
           title: "Profile",
           subtitle: "Manage your personal information",
-          onPress: () => console.log("Profile pressed"),
+          showChevron: false,
         },
         {
           id: "privacy",
           icon: Shield,
           title: "Privacy & Security",
           subtitle: "Control your privacy settings",
-          onPress: () => console.log("Privacy pressed"),
+          showChevron: false,
         },
       ],
     },
@@ -180,7 +180,7 @@ export default function SettingsScreen() {
           icon: MapPin,
           title: "Location Accuracy",
           subtitle: `Currently: ${location.accuracy}`,
-          onPress: () => console.log("Location accuracy pressed"),
+          showChevron: false,
         },
       ],
     },
@@ -192,14 +192,14 @@ export default function SettingsScreen() {
           icon: HelpCircle,
           title: "Help & FAQ",
           subtitle: "Get answers to common questions",
-          onPress: () => console.log("Help pressed"),
+          showChevron: false,
         },
         {
           id: "contact",
           icon: HelpCircle,
           title: "Contact Support",
           subtitle: "Get in touch with our team",
-          onPress: () => console.log("Support pressed"),
+          showChevron: false,
         },
       ],
     },
@@ -245,13 +245,14 @@ export default function SettingsScreen() {
       </View>
     </>
   );
-
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Settings</Text>
         <Text style={styles.subtitle}>Manage your account and preferences</Text>
       </View>
+
+      <ProfileCard />
 
       <SectionList
         sections={sections}

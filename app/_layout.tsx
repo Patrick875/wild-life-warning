@@ -1,4 +1,5 @@
 import { AuthContext, AuthProvider } from "@/context/AuthContext";
+import UserProvider from "@/context/UserContext";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
@@ -21,6 +22,7 @@ function RootNavigator() {
           <Stack.Screen name="(auth)" />
         )}
         <Stack.Screen name="alert-details" />
+        <Stack.Screen name="warning-feedbacks" />
         <Stack.Screen name="+not-found" />
       </Stack>
       <Toast />
@@ -36,7 +38,9 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
           <AuthProvider>
-            <RootNavigator />
+            <UserProvider>
+              <RootNavigator />
+            </UserProvider>
           </AuthProvider>
         </SafeAreaProvider>
 

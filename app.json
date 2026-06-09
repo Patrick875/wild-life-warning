@@ -58,6 +58,13 @@
           "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location to record wildlife sightings.",
           "isAndroidBackgroundLocationEnabled": true
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Wildlife-app to access your photos so you can attach evidence to warnings.",
+          "cameraPermission": "Allow Wildlife-app to use your camera so you can capture warning evidence."
+        }
       ]
     ],
     "experiments": {

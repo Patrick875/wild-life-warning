@@ -1,73 +1,55 @@
 import DynamicForm from "@/components/ui/DynamicForm";
 import {
-  fetchFormDetails,
-  fetchKoboFormStructure,
-  wildlifeApi,
-} from "@/services/api";
-import { useMutation, useQuery } from "@tanstack/react-query";
+  useGetFormDetails,
+  useGetFormStructure,
+  useSubmitObservation,
+} from "@/services/alert";
+import { alertsFormUid } from "@/services/api";
 import { isAxiosError } from "axios";
 import React from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-interface FormData {
-  species: string;
-  location: string;
-  date: string;
-  time: string;
-  count: string;
-  behavior: string;
-  habitat: string;
-  weather: string;
-  notes: string;
-}
-
 export default function CollectScreen() {
-  const { data: formData } = useQuery({
-    queryKey: ["koboForm-details"],
-    queryFn: () => fetchFormDetails("aFVTJLbCSxe3ixGxNoAMBU"),
-    staleTime: 0,
+  const { isLoading: isLoadingFormDetails } = useGetFormDetails({
+    formId: alertsFormUid,
   });
   const {
     data: fields,
     isLoading,
     error,
-  } = useQuery({
-    queryKey: ["koboForm", "aFVTJLbCSxe3ixGxNoAMBU"],
-    queryFn: () => fetchKoboFormStructure("aFVTJLbCSxe3ixGxNoAMBU"),
+  } = useGetFormStructure({
+    formId: alertsFormUid,
   });
 
   const {
     mutate: submitObs,
     isPending,
     isSuccess,
-  } = useMutation({
-    mutationFn: (data: any) => {
-      const res = wildlifeApi.submitObservation(data.submission_data);
-      return res;
-    },
-    onSuccess: (res) => {
-      Alert.alert("Success", "Form submitted successfully!");
-    },
-    onError: (err) => {
-      if (isAxiosError(err)) {
-        console.log("Submit failed:", err.response?.data || err.message);
-        Alert.alert(
-          "Submission failed",
-          err.response?.data?.message || "Please check the form and try again.",
-        );
-        return;
-      }
-      console.log("Error submitting observation:", err);
-      Alert.alert("Submission failed", "Please try again.");
-    },
-  });
+  } = useSubmitObservation({ formId: alertsFormUid });
 
   const handleSubmitData = (data: any) => {
-    submitObs(data);
+    submitObs(data.submission_data, {
+      onSuccess: () => {
+        Alert.alert("Success", "Form submitted successfully!");
+      },
+      onError: (err) => {
+        if (isAxiosError(err)) {
+          console.error("Submit failed:", err.response?.data || err.message);
+          Alert.alert(
+            "Submission failed",
+            err.response?.data?.message ||
+              "Please check the form and try again.",
+          );
+          return;
+        }
+        console.error("Error submitting observation:", err);
+        Alert.alert("Submission failed", "Please try again.");
+      },
+    });
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingFormDetails) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>

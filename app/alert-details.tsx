@@ -72,7 +72,7 @@ export default function AlertDetailsScreen() {
   }
 
   const evidence = alert.evidence || [];
-  const rawSubmission = alert.rawSubmission || {};
+  const rawSubmission = alert.rawSubmission;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -195,7 +195,7 @@ export default function AlertDetailsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Submission reference</Text>
           {/* <Text style={styles.referenceText}>ID: {alert.id}</Text> */}
-          {!!rawSubmission._uuid && (
+          {!!rawSubmission?._uuid && (
             <Text style={styles.referenceText}>
               UUID: {rawSubmission._uuid}
             </Text>

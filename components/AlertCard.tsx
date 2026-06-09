@@ -1,27 +1,23 @@
 import { useLocationDistance } from "@/hooks/use-location-distance";
+import { WildlifeAlert } from "@/types/wildlife";
 import { formatDistanceToNow } from "date-fns";
-import { MapPin, MessageSquare, Tractor } from "lucide-react-native";
+import {
+  MapPin,
+  MessageSquare,
+  ShieldAlert,
+  Tractor,
+} from "lucide-react-native";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 interface Props {
-  alert: {
-    id: number | string;
-    severity: string;
-    title: string;
-    species: string;
-    description: string;
-    location?: { lat?: number; lng?: number };
-    timestamp: string;
-    behavior?: string;
-    submittedBy?: string;
-    replyNumber?: number;
-  };
+  alert: WildlifeAlert;
   location?: {
     lat?: number;
     lng?: number;
   };
-  onPress?: () => void;
+  onDetailsPress?: () => void;
+  onFeedbackPress?: () => void;
 }
 
 const getSeverityStyle = (severity?: string) => {
@@ -58,8 +54,12 @@ const getSeverityStyle = (severity?: string) => {
   }
 };
 
-const AlertCard = ({ alert, location, onPress }: Props) => {
-  // console.log("card-alert", alert);
+const AlertCard = ({
+  alert,
+  location,
+  onDetailsPress,
+  onFeedbackPress,
+}: Props) => {
   const { distance, unit } = useLocationDistance({
     locationFrom: {
       latitude: alert.location?.lat,
@@ -72,14 +72,15 @@ const AlertCard = ({ alert, location, onPress }: Props) => {
     unit: "km",
   });
 
-  const replies = alert.replyNumber || 0;
+  const replies = alert.replyNumber || alert.feedbacks?.length || 0;
+  const reportedBy = alert.submittedBy || alert.rawSubmission?.user?.full_name;
+  const behaviorText = alert.behavior ? ` ${alert.behavior}` : "";
+  const headline = `${alert.species} reported${behaviorText}`;
 
   return (
-    <TouchableOpacity
+    <View
       key={alert.id}
       style={[styles.alertCard, getSeverityStyle(alert.severity)]}
-      onPress={onPress}
-      activeOpacity={0.85}
     >
       <View style={styles.alertHeader}>
         <View style={styles.cardIconContainer}>
@@ -92,22 +93,31 @@ const AlertCard = ({ alert, location, onPress }: Props) => {
           </Text>
 
           <Text style={styles.alertMetaText} numberOfLines={1}>
-            {alert.submittedBy ? `by ${alert.submittedBy}` : "Unknown"} •{" "}
-            {formatDistanceToNow(new Date(alert.timestamp), {
+            {reportedBy ? `by ${reportedBy}` : "Unknown"} •{" "}
+            {formatDistanceToNow(new Date(alert.created_at), {
               addSuffix: true,
             })}
           </Text>
         </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open warning details"
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.iconButtonPressed,
+          ]}
+          onPress={onDetailsPress}
+        >
+          <ShieldAlert size={20} color="#B45309" />
+        </Pressable>
       </View>
 
       <View>
         <Text style={styles.alertDescription}>
-          {`${alert.species} reported ${alert?.behavior || " Moving north"}`
-            ?.split("")[0]
-            .toLocaleUpperCase() +
-            `${alert.species} reported ${alert?.behavior || " Moving north"}`
-              ?.toLocaleLowerCase()
-              .substring(1)}
+          {headline.charAt(0).toLocaleUpperCase() +
+            headline.substring(1).toLocaleLowerCase()}
         </Text>
 
         <Text style={styles.alertDescription}>{alert.description}</Text>
@@ -121,12 +131,23 @@ const AlertCard = ({ alert, location, onPress }: Props) => {
           </Text>
         </View>
 
-        <View style={styles.alertMeta}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open warning feedbacks"
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.feedbackButton,
+            pressed && styles.feedbackButtonPressed,
+          ]}
+          onPress={onFeedbackPress}
+        >
           <MessageSquare size={16} color="#6B7280" />
-          <Text style={styles.alertTime}>{replies} replies</Text>
-        </View>
+          <Text style={styles.alertTime}>
+            Reply {replies > 0 ? `(${replies})` : ""}
+          </Text>
+        </Pressable>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 };
 
@@ -156,6 +177,19 @@ const styles = StyleSheet.create({
   alertInfo: {
     flex: 1,
     minWidth: 0,
+  },
+
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  iconButtonPressed: {
+    opacity: 0.72,
   },
 
   alertTitle: {
@@ -190,6 +224,19 @@ const styles = StyleSheet.create({
   alertMeta: {
     flexDirection: "row",
     alignItems: "center",
+  },
+
+  feedbackButton: {
+    minHeight: 34,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    marginLeft: -6,
+  },
+
+  feedbackButtonPressed: {
+    backgroundColor: "#F3F4F6",
   },
 
   alertLocation: {

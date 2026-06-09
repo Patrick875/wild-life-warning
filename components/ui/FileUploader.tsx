@@ -1,7 +1,5 @@
 // components/FileUploader.tsx
 import axios, { isCancel } from "axios";
-import * as DocumentPicker from "expo-document-picker";
-import * as ImagePicker from "expo-image-picker";
 import { Camera, FileText, ImagePlus, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -9,6 +7,7 @@ import {
   Alert,
   Image,
   Pressable,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -66,6 +65,10 @@ type ActiveUpload = {
   listeners: Set<(snapshot: UploadSnapshot) => void>;
 };
 
+type ImagePickerAsset = import("expo-image-picker").ImagePickerAsset;
+type ImagePickerModule = typeof import("expo-image-picker");
+type DocumentPickerModule = typeof import("expo-document-picker");
+
 const activeUploads = new Map<string, ActiveUpload>();
 
 const notifyUploadListeners = (key: string) => {
@@ -94,6 +97,41 @@ const getUploadUrl = (data: any, fallbackUri: string) => {
   return typeof possibleUrl === "string" && possibleUrl.length > 0
     ? possibleUrl
     : fallbackUri;
+};
+
+const unwrapExpoModule = <T extends Record<string, any>>(module: T) => {
+  return (module.default || module) as T;
+};
+
+const loadImagePicker = async (): Promise<ImagePickerModule | null> => {
+  try {
+    const ImagePicker = unwrapExpoModule(await import("expo-image-picker"));
+    if (
+      typeof ImagePicker.requestMediaLibraryPermissionsAsync !== "function" ||
+      typeof ImagePicker.requestCameraPermissionsAsync !== "function" ||
+      typeof ImagePicker.launchImageLibraryAsync !== "function" ||
+      typeof ImagePicker.launchCameraAsync !== "function"
+    ) {
+      return null;
+    }
+    return ImagePicker;
+  } catch {
+    return null;
+  }
+};
+
+const loadDocumentPicker = async (): Promise<DocumentPickerModule | null> => {
+  try {
+    const DocumentPicker = unwrapExpoModule(
+      await import("expo-document-picker"),
+    );
+    if (typeof DocumentPicker.getDocumentAsync !== "function") {
+      return null;
+    }
+    return DocumentPicker;
+  } catch {
+    return null;
+  }
 };
 
 export default function FileUploader({
@@ -175,9 +213,7 @@ export default function FileUploader({
     return ["images"] as any;
   };
 
-  const normalizeAsset = (
-    asset: ImagePicker.ImagePickerAsset,
-  ): UploadedFile => {
+  const normalizeAsset = (asset: ImagePickerAsset): UploadedFile => {
     const mimeType = asset.mimeType;
     const type: UploadKind = mimeType?.startsWith("video") ? "video" : "image";
 
@@ -189,6 +225,32 @@ export default function FileUploader({
       type,
       file: (asset as any).file,
       timestamp: Date.now(),
+    };
+  };
+
+  const normalizeDocumentAsset = (asset: {
+    uri: string;
+    name: string;
+    mimeType?: string;
+    size?: number;
+    lastModified?: number;
+    file?: Blob;
+  }): UploadedFile => {
+    const mimeType = asset.mimeType;
+    const type: UploadKind = mimeType?.startsWith("video")
+      ? "video"
+      : mimeType?.startsWith("image")
+        ? "image"
+        : "document";
+
+    return {
+      uri: asset.uri,
+      name: asset.name,
+      mimeType,
+      size: asset.size,
+      type,
+      file: asset.file,
+      timestamp: asset.lastModified || Date.now(),
     };
   };
 
@@ -251,7 +313,6 @@ export default function FileUploader({
     });
 
     const data = response.data;
-    console.log("upload-response", data);
     onProgress?.(1);
     return getUploadUrl(data, file.uri);
   };
@@ -287,7 +348,8 @@ export default function FileUploader({
     try {
       const uploaded = await Promise.all(
         newFiles.map(async (file, index) => {
-          const startingProgress = newFiles.length > 1 ? index / newFiles.length : 0;
+          const startingProgress =
+            newFiles.length > 1 ? index / newFiles.length : 0;
           setUploadState({
             active: true,
             fileName: file.name,
@@ -353,43 +415,129 @@ export default function FileUploader({
       return;
     }
 
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    try {
+      const ImagePicker = await loadImagePicker();
 
-    if (!permission.granted) {
-      Alert.alert("Permission needed", "Please allow media library access.");
-      return;
+      if (!ImagePicker && Platform.OS === "android") {
+        await pickMediaWithDocumentPicker();
+        return;
+      }
+
+      if (!ImagePicker) {
+        Alert.alert(
+          "Media picker unavailable",
+          "Please rebuild the app so the media picker native module is included.",
+        );
+        return;
+      }
+
+      let permission;
+      try {
+        permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      } catch {
+        if (Platform.OS === "android") {
+          await pickMediaWithDocumentPicker();
+          return;
+        }
+        Alert.alert("Media picker unavailable", "Please try again.");
+        return;
+      }
+
+      if (!permission.granted) {
+        Alert.alert("Permission needed", "Please allow media library access.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: getImagePickerMediaTypes(),
+        allowsMultipleSelection: multiple,
+        quality: 0.8,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
+      });
+
+      if (result.canceled) return;
+
+      const selected = result.assets.map(normalizeAsset);
+      await uploadFiles(selected);
+    } catch {
+      Alert.alert("Media picker unavailable", "Please try again.");
     }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: getImagePickerMediaTypes(),
-      allowsMultipleSelection: multiple,
-      quality: 0.8,
-      videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
-    });
-
-    if (result.canceled) return;
-
-    const selected = result.assets.map(normalizeAsset);
-    await uploadFiles(selected);
   };
 
   const captureWithCamera = async () => {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    try {
+      const ImagePicker = await loadImagePicker();
 
-    if (!permission.granted) {
-      Alert.alert("Permission needed", "Please allow camera access.");
+      if (!ImagePicker) {
+        Alert.alert(
+          "Camera unavailable",
+          "Please rebuild the app so the camera picker native module is included.",
+        );
+        return;
+      }
+
+      let permission;
+      try {
+        permission = await ImagePicker.requestCameraPermissionsAsync();
+      } catch {
+        Alert.alert(
+          "Camera unavailable",
+          "Please rebuild the app so the camera picker native module is included.",
+        );
+        return;
+      }
+
+      if (!permission.granted) {
+        Alert.alert("Permission needed", "Please allow camera access.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: getImagePickerMediaTypes(),
+        quality: 0.8,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
+      });
+
+      if (result.canceled) return;
+
+      const selected = result.assets.map(normalizeAsset);
+      await uploadFiles(selected);
+    } catch {
+      Alert.alert("Camera unavailable", "Please try again.");
+    }
+  };
+
+  const pickMediaWithDocumentPicker = async () => {
+    const DocumentPicker = await loadDocumentPicker();
+
+    if (!DocumentPicker) {
+      Alert.alert(
+        "File picker unavailable",
+        "Please rebuild the app so the document picker native module is included.",
+      );
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: getImagePickerMediaTypes(),
-      quality: 0.8,
-      videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
-    });
+    let result;
+    try {
+      result = await DocumentPicker.getDocumentAsync({
+        multiple,
+        copyToCacheDirectory: true,
+        type:
+          allowImages && allowVideos
+            ? ["image/*", "video/*"]
+            : allowImages
+              ? "image/*"
+              : "video/*",
+      });
+    } catch {
+      Alert.alert("File picker unavailable", "Please try again.");
+      return;
+    }
 
     if (result.canceled) return;
 
-    const selected = result.assets.map(normalizeAsset);
+    const selected = result.assets.map(normalizeDocumentAsset);
     await uploadFiles(selected);
   };
 
@@ -399,22 +547,33 @@ export default function FileUploader({
       return;
     }
 
-    const result = await DocumentPicker.getDocumentAsync({
-      multiple,
-      copyToCacheDirectory: true,
-      type: "*/*",
-    });
+    const DocumentPicker = await loadDocumentPicker();
+
+    if (!DocumentPicker) {
+      Alert.alert(
+        "File picker unavailable",
+        "Please rebuild the app so the document picker native module is included.",
+      );
+      return;
+    }
+
+    let result;
+    try {
+      result = await DocumentPicker.getDocumentAsync({
+        multiple,
+        copyToCacheDirectory: true,
+        type: "*/*",
+      });
+    } catch {
+      Alert.alert("File picker unavailable", "Please try again.");
+      return;
+    }
 
     if (result.canceled) return;
 
-    const selected: UploadedFile[] = result.assets.map((asset) => ({
-      uri: asset.uri,
-      name: asset.name,
-      mimeType: asset.mimeType,
-      size: asset.size,
-      type: "document",
-      file: (asset as any).file,
-      timestamp: asset.lastModified,
+    const selected = result.assets.map((asset) => ({
+      ...normalizeDocumentAsset(asset),
+      type: "document" as const,
     }));
 
     await uploadFiles(selected);

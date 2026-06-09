@@ -1,6 +1,15 @@
-import { WildlifeAlert, WildlifeObservation } from "@/types/wildlife";
-import axios, { isAxiosError } from "axios";
-import { Platform } from "react-native";
+import {
+  ApiEnvelope,
+  PaginatedWarningSubmissions,
+  WarningFeedback,
+  WarningSeverity,
+  WarningSubmission,
+  WildlifeAlert,
+} from "@/types/wildlife";
+import axios from "axios";
+import { apiClient, baseUrl } from "./axiosInstance";
+
+export { baseUrl };
 
 const BASE_URL = "https://kc.kobotoolbox.org/api/v2/assets";
 const TOKEN = "c6a41ab079fb6b99fc8b69f9f4bc6eb91f1ca0a1";
@@ -25,8 +34,7 @@ export const fetchKoboFormStructure = async (formUid: string) => {
   });
 
   if (!response.data) {
-    // throw new Error("Failed to fetch form structure");
-    console.log("Failed to fetch form structure");
+    throw new Error("Failed to fetch form structure");
   }
 
   const data = response.data;
@@ -66,21 +74,14 @@ export const fetchFormDetails = async (formUid: string) => {
   });
 
   if (!response.data) {
-    // throw new Error("Failed to fetch form details");
-    console.log("Failed to fetch form details");
+    throw new Error("Failed to fetch form details");
   }
 
   const data = response.data;
   return data.content;
 };
 
-const localApiHost = Platform.OS === "android" ? "10.0.2.2" : "localhost";
-// export const baseUrl = `http://${localApiHost}:4800/api/v1`;
-export const baseUrl = "https://wild-life-conserv-2.onrender.com/api/v1";
 export const alertsFormUid = "aFVTJLbCSxe3ixGxNoAMBU";
-export const api = axios.create({
-  baseURL: baseUrl,
-});
 
 const getSubmissionValue = (
   submissionData: Record<string, any>,
@@ -126,6 +127,19 @@ const pluralizeSpecies = (species: string, count: string) => {
   return `${species}s`;
 };
 
+const toIsoTimestamp = (value: unknown) => {
+  const date =
+    typeof value === "number" || typeof value === "string"
+      ? new Date(value)
+      : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date().toISOString();
+  }
+
+  return date.toISOString();
+};
+
 const normalizeEvidence = (value: unknown) => {
   const parsedValue =
     typeof value === "string" && value.trim().length > 0
@@ -155,8 +169,47 @@ const normalizeEvidence = (value: unknown) => {
   });
 };
 
-const mapSubmissionToAlert = (
-  submission: Record<string, any>,
+export const normalizeFeedbacks = (value: unknown): WarningFeedback[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .reduce<WarningFeedback[]>((feedbackList, item) => {
+      if (typeof item !== "object" || item === null) return feedbackList;
+      const feedback = item as Record<string, any>;
+      const message = feedback.message || feedback.feedback || feedback.text;
+      if (!message) return feedbackList;
+
+      feedbackList.push({
+        id: feedback.id || feedback._id || feedback.uuid,
+        message: String(message),
+        warning_id: feedback.warning_id || feedback.warningId,
+        submitted_by:
+          feedback.submitted_by ||
+          feedback.submittedBy ||
+          feedback.username ||
+          feedback?.user?.full_name,
+        created_at: feedback.created_at || feedback.createdAt,
+        updated_at: feedback.updated_at || feedback.updatedAt,
+        user_id: feedback.user_id || feedback.userId,
+        user: feedback?.user,
+        timestamp:
+          feedback.timestamp ||
+          feedback.created_at ||
+          feedback.createdAt ||
+          new Date().toISOString(),
+      });
+
+      return feedbackList;
+    }, [])
+    .sort(
+      (a, b) =>
+        new Date(b.timestamp || b.created_at || 0).getTime() -
+        new Date(a.timestamp || a.created_at || 0).getTime(),
+    );
+};
+
+export const mapSubmissionToAlert = (
+  submission: WarningSubmission,
   index: number,
 ): WildlifeAlert => {
   const nestedSubmissionData =
@@ -203,17 +256,25 @@ const mapSubmissionToAlert = (
       "Evidence_Media",
     ]),
   );
+  const feedbacks = normalizeFeedbacks(
+    submission.feedbacks || submission.warning_feedbacks || submission.replies,
+  );
   const title =
     `${count} ${pluralizeSpecies(String(species), String(count))} reported` ||
     "Wildlife reported";
 
-  const severity =
+  const severity: WarningSeverity =
     severityValue === "high" ||
     severityValue === "low" ||
     severityValue === "critical"
       ? severityValue
       : "medium";
   const parsedLocation = parseLocation(submissionData.location);
+  const timestamp =
+    submission._submission_time ||
+    submission.submitted_at ||
+    submission.created_at ||
+    new Date().toISOString();
 
   return {
     id: String(
@@ -228,141 +289,79 @@ const mapSubmissionToAlert = (
     count: String(count),
     description: String(description),
     location: parsedLocation,
-    submittedBy: submission?._submitted_by,
+    submittedBy: submission._submitted_by || submission.user?.full_name,
     severity,
     behavior: String(behavior),
     evidence,
+    feedbacks,
+    replyNumber: submission.feedback_count || feedbacks.length,
     rawSubmission: submission,
-    timestamp:
-      submission._submission_time ||
-      submission.submitted_at ||
-      submission.created_at ||
-      new Date().toISOString(),
+    created_at: submission.created_at || Date.now(),
+    updated_at: submission.updated_at,
+    user_id: submission.user_id,
+    status: submission.status,
+    kobo_submission_id: submission.kobo_submission_id,
+    timestamp: toIsoTimestamp(timestamp),
   };
 };
 
-class WildlifeAPI {
-  private baseUrl = baseUrl;
+const getAlertTime = (alert: WildlifeAlert) => {
+  const value = alert.created_at || alert.timestamp;
+  const time = typeof value === "number" ? value : new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+};
 
-  // Simulate network delay
-  private delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+export const fetchAlertSubmissions = async (formId = alertsFormUid) => {
+  const response = await apiClient.get<
+    ApiEnvelope<PaginatedWarningSubmissions>
+  >(`/forms/${formId}/submissions`);
+
+  return response.data.data;
+};
+
+export const fetchMyAlertSubmissions = async (formId = alertsFormUid) => {
+  const response = await apiClient.get<
+    ApiEnvelope<PaginatedWarningSubmissions>
+  >(`/forms/${formId}/submissions/me`);
+
+  return response.data.data;
+};
+
+export const fetchAlerts = async (formId = alertsFormUid) => {
+  const submissions = await fetchAlertSubmissions(formId);
+
+  if (!Array.isArray(submissions.api_results)) {
+    throw new Error("Unexpected submissions response");
   }
 
-  async getAlerts(): Promise<WildlifeAlert[]> {
-    const response = await api.get(`/forms/${alertsFormUid}/submissions`);
+  return submissions.api_results
+    .map(mapSubmissionToAlert)
+    .sort((a, b) => getAlertTime(b) - getAlertTime(a));
+};
 
-    const submissions = response.data?.data?.results?.results || [];
+export const fetchMyAlerts = async (formId = alertsFormUid) => {
+  const submissions = await fetchMyAlertSubmissions(formId);
 
-    if (!Array.isArray(submissions)) {
-      console.log("Unexpected submissions response");
-    }
-    const sorted =
-      submissions
-        ?.map?.(mapSubmissionToAlert)
-        ?.sort(
-          (a: any, b: any) =>
-            new Date(b?.timestamp).getTime() - new Date(a?.timestamp).getTime(),
-        ) || [];
-
-    return sorted;
+  if (!Array.isArray(submissions.api_results)) {
+    throw new Error("Unexpected my submissions response");
   }
 
-  async submitObservation(observation: any) {
-    try {
-      const response = await api.post(
-        `/forms/${alertsFormUid}/submit_warning`,
-        observation,
-      );
+  return submissions.api_results
+    .map(mapSubmissionToAlert)
+    .sort((a, b) => getAlertTime(b) - getAlertTime(a));
+};
 
-      if (!response) {
-        // throw new Error(`Failed to submit observation: ${response}`);
-        console.log(`Failed to submit observation: ${response}`);
-      }
+export const submitObservation = async ({
+  formId = alertsFormUid,
+  observation,
+}: {
+  formId?: string;
+  observation: unknown;
+}) => {
+  const response = await apiClient.post(
+    `/forms/${formId}/submit_warning`,
+    observation,
+  );
 
-      return response;
-    } catch (error) {
-      if (isAxiosError(error)) {
-        console.error("Error submitting observation:", {
-          url: `${baseUrl}/forms/${alertsFormUid}/submit_warning`,
-          status: error.response?.status,
-          response: error.response?.data,
-        });
-      } else {
-        console.error("Error submitting observation:", error);
-      }
-      // throw error;
-      console.log(error);
-    }
-  }
-
-  async getObservations(): Promise<WildlifeObservation[]> {
-    await this.delay(500);
-
-    // Mock data - in real app would fetch from server
-    return [
-      {
-        id: "1",
-        species: "Red Deer",
-        location: "Highland Forest",
-        timestamp: new Date().toISOString(),
-        observer: "user123",
-        count: 3,
-        behavior: "Grazing",
-        habitat: "Forest clearing",
-        weather: "Sunny",
-        notes: "Healthy looking herd, including one young deer",
-      },
-    ];
-  }
-
-  async authenticate(email: string, password: string) {
-    await this.delay(1000);
-
-    // Mock authentication - in real app would validate credentials
-    if (email && password) {
-      return {
-        token: "mock_jwt_token",
-        user: {
-          id: "user123",
-          email,
-          name: "Wildlife Researcher",
-          role: "researcher",
-        },
-      };
-    }
-
-    // throw new Error("Invalid credentials");
-    console.log("Invalid credentials");
-  }
-
-  async register(userData: {
-    name: string;
-    email: string;
-    password: string;
-  }): Promise<{ success: boolean; user: any }> {
-    await this.delay(1000);
-
-    // Mock registration
-    return {
-      success: true,
-      user: {
-        id: `user_${Date.now()}`,
-        email: userData.email,
-        name: userData.name,
-        role: "researcher",
-      },
-    };
-  }
-
-  async resetPassword(email: string): Promise<{ success: boolean }> {
-    await this.delay(1000);
-
-    // Mock password reset
-    console.log(`Password reset requested for: ${email}`);
-
-    return { success: true };
-  }
-}
-
-export const wildlifeApi = new WildlifeAPI();
+  return response.data;
+};

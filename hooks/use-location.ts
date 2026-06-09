@@ -1,5 +1,6 @@
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
+import { getSafeCurrentLocation } from "@/utils/location";
 
 export const useLocation = () => {
   const [location, setLocation] = useState<Location.LocationObject | null>(
@@ -12,20 +13,22 @@ export const useLocation = () => {
 
   useEffect(() => {
     async function getCurrentLocation() {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied");
-        return;
-      }
-
-      let location = await Location.getCurrentPositionAsync({});
-      setLocation(location);
-      let n_location = await Location.reverseGeocodeAsync({
-        latitude: location?.coords?.latitude,
-        longitude: location?.coords?.longitude,
-      });
-      if (n_location && n_location?.length !== 0) {
-        setNormalized_location(n_location[0]);
+      try {
+        const { location } = await getSafeCurrentLocation();
+        setLocation(location);
+        let n_location = await Location.reverseGeocodeAsync({
+          latitude: location?.coords?.latitude,
+          longitude: location?.coords?.longitude,
+        });
+        if (n_location && n_location?.length !== 0) {
+          setNormalized_location(n_location[0]);
+        }
+      } catch (error) {
+        setErrorMsg(
+          error instanceof Error
+            ? error.message
+            : "Current location is unavailable. Turn on location services and try again.",
+        );
       }
     }
 
@@ -43,6 +46,7 @@ export const useLocation = () => {
     location: location,
     normalized_location: normalized_location,
     isError: !!errorMsg,
+    errorMsg,
   };
 };
 

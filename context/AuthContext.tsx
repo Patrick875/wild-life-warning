@@ -1,6 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  deleteSecureItem,
+  getSecureItem,
+  saveSecureItem,
+} from "@/utils/secureStore";
 import { router } from "expo-router";
 import { createContext, ReactNode, useEffect, useState } from "react";
+
 type IAuthContext = {
   userToken: string | null;
   login: (token: string) => void;
@@ -17,7 +22,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userToken, setUserToken] = useState<string | null>(null);
   useEffect(() => {
     const loadToken = async () => {
-      const token = await AsyncStorage.getItem("userToken");
+      const token = await getSecureItem("userToken");
 
       if (token) setUserToken(token);
     };
@@ -25,11 +30,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
   const login = async (token: string) => {
     if (!token) return;
-    await AsyncStorage.setItem("userToken", token);
+
+    await saveSecureItem("userToken", token);
     setUserToken(token);
   };
   const logout = async () => {
-    await AsyncStorage.removeItem("userToken");
+    await deleteSecureItem("userToken");
     router.push("/(auth)");
     setUserToken(null);
   };

@@ -6,18 +6,25 @@ import { StyleSheet, Text, View } from "react-native";
 const LocationCard = ({
   location,
   normalized_location,
+  errorMsg,
 }: {
   location: Location.LocationObject | null;
   normalized_location: Location.LocationGeocodedAddress | null;
+  errorMsg?: string | null;
 }) => {
   return (
-    <View style={styles.locationCard}>
+    <View style={[styles.locationCard, errorMsg && styles.locationCardError]}>
       <View>
-        <MapPin size={24} />
+        <MapPin size={24} color={errorMsg ? "#B45309" : "#111827"} />
       </View>
-      <View>
+      <View style={styles.locationCopy}>
         <Text style={styles.locationTextTitle}>CURRENT LOCATION</Text>
-        {normalized_location && (
+        {errorMsg ? (
+          <View>
+            <Text style={styles.locationTextName}>Location unavailable</Text>
+            <Text style={styles.locationTextCity}>{errorMsg}</Text>
+          </View>
+        ) : normalized_location ? (
           <View>
             <Text style={styles.locationTextName}>
               {normalized_location?.name}
@@ -26,6 +33,8 @@ const LocationCard = ({
               {normalized_location?.city}
             </Text>
           </View>
+        ) : (
+          <Text style={styles.locationTextCity}>Checking location...</Text>
         )}
       </View>
     </View>
@@ -45,14 +54,21 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     marginBlock: 24,
   },
+  locationCardError: {
+    borderColor: "#F59E0B",
+    backgroundColor: "#FFFBEB",
+  },
+  locationCopy: {
+    flex: 1,
+  },
   locationTextTitle: {
     marginBlock: 6,
   },
   locationTextName: {
-    fontWeight: 700,
+    fontWeight: "700",
   },
   locationTextCity: {
-    fontWeight: 400,
+    fontWeight: "400",
     fontSize: 14,
     color: "#42493E",
   },

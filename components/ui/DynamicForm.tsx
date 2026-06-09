@@ -1,10 +1,11 @@
 import FileUploader, { UploadedFile } from "@/components/ui/FileUploader";
 import { AuthContext } from "@/context/AuthContext";
-import { alertsFormUid, baseUrl } from "@/services/api";
+import { alertsFormUid } from "@/services/api";
+import { baseUrl } from "@/services/axiosInstance";
+import { getSafeCurrentLocation } from "@/utils/location";
 import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
-import * as Location from "expo-location";
 import { jwtDecode } from "jwt-decode";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import React, { useContext, useEffect, useState } from "react";
@@ -61,11 +62,11 @@ export default function DynamicForm({
   const decoded: any = userToken ? jwtDecode(userToken) : null;
 
   const [formData, setFormData] = useState<Record<string, any>>({});
-  const [locationPermission, setLocationPermission] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [openSelectField, setOpenSelectField] = useState<string | null>(null);
   const [openDateField, setOpenDateField] = useState<string | null>(null);
   const [datePickerValue, setDatePickerValue] = useState<Date>(new Date());
@@ -73,19 +74,30 @@ export default function DynamicForm({
   const [isMapInteractive, setIsMapInteractive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
 
-  // ask for permission
-  useEffect(() => {
-    (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === "granted") {
-        setLocationPermission(true);
-        let loc = await Location.getCurrentPositionAsync({});
-        setCurrentLocation({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        });
+  const requestCurrentLocation = async () => {
+    setLocationError(null);
+
+    try {
+      const { location, isLastKnown } = await getSafeCurrentLocation();
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+      if (isLastKnown) {
+        setLocationError("Using your last known location.");
       }
-    })();
+    } catch (error) {
+      setCurrentLocation(null);
+      setLocationError(
+        error instanceof Error
+          ? error.message
+          : "Current location is unavailable. Turn on location services and try again.",
+      );
+    }
+  };
+
+  useEffect(() => {
+    requestCurrentLocation();
   }, []);
 
   const handleChange = (xpath: string, value: any) => {
@@ -302,6 +314,15 @@ export default function DynamicForm({
             : undefined,
       },
     };
+
+    if (alwaysShowMap && !currentLocation) {
+      Alert.alert(
+        "Location unavailable",
+        locationError ||
+          "Please enable location services before submitting this warning.",
+      );
+      return;
+    }
 
     if (onSubmit) {
       await onSubmit(submitData);
@@ -636,7 +657,23 @@ export default function DynamicForm({
   }, [isSuccess]);
 
   const renderMap = () => {
-    if (!currentLocation) return null;
+    if (!currentLocation) {
+      return (
+        <View style={styles.locationFallback}>
+          <Text style={styles.locationFallbackTitle}>Location unavailable</Text>
+          <Text style={styles.locationFallbackText}>
+            {locationError ||
+              "Turn on location services to attach coordinates to this warning."}
+          </Text>
+          <TouchableOpacity
+            style={styles.locationRetryButton}
+            onPress={requestCurrentLocation}
+          >
+            <Text style={styles.locationRetryButtonText}>Try again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
 
     // Web doesn't support react-native-maps; show a simple fallback
     if (Platform.OS === "web") {
@@ -753,9 +790,7 @@ export default function DynamicForm({
 
         {/* Always show map if enabled */}
         {activeStep.kind === "details" &&
-          alwaysShowMap &&
-          locationPermission &&
-          currentLocation && (
+          alwaysShowMap && (
             <View style={styles.field}>
               <Text style={styles.label}>Observation Location *</Text>
               {renderMap()}
@@ -825,6 +860,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     marginTop: 8,
+  },
+  locationFallback: {
+    minHeight: 150,
+    borderWidth: 1,
+    borderColor: "#F59E0B",
+    borderRadius: 8,
+    backgroundColor: "#FFFBEB",
+    padding: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  locationFallbackTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#92400E",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  locationFallbackText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#78350F",
+    textAlign: "center",
+    marginBottom: 14,
+  },
+  locationRetryButton: {
+    minHeight: 38,
+    borderRadius: 8,
+    backgroundColor: "#2D5A27",
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  locationRetryButtonText: {
+    color: "white",
+    fontWeight: "800",
   },
   input: {
     borderWidth: 1,
