@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import {
   TriangleAlert as AlertTriangle,
+  BrainCog,
   Camera,
   Settings,
 } from "lucide-react-native";
@@ -51,8 +52,17 @@ export default function TabLayout() {
       <Tabs.Screen
         name="submitAlert"
         options={{
-          title: "Submit Alert",
+          title: "Send Alert",
           tabBarIcon: ({ size, color }) => <Camera size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="ask"
+        options={{
+          title: "AI",
+          tabBarIcon: ({ size, color }) => (
+            <BrainCog size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen

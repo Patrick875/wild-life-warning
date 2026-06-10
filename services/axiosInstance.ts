@@ -1,4 +1,4 @@
-import { getSecureItem } from "@/utils/secureStore";
+import { deleteSecureItem, getSecureItem } from "@/utils/secureStore";
 import axios from "axios";
 import { router } from "expo-router";
 import { Platform } from "react-native";
@@ -13,6 +13,17 @@ export const apiClient = axios.create({
   baseURL: baseUrl,
 });
 
+let isHandlingUnauthorized = false;
+let unauthorizedHandler: (() => void) | null = null;
+
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  unauthorizedHandler = handler;
+};
+
+const isAuthEndpoint = (url?: string) => {
+  return !!url && url.startsWith("/auth/");
+};
+
 apiClient.interceptors.request.use(async (config) => {
   const token = await getSecureItem("userToken");
   if (token) {
@@ -25,15 +36,29 @@ apiClient.interceptors.response.use(
   async (response) => {
     return response;
   },
-  (err) => {
-    if (err && err.response && err.response.status == 401) {
-      router.push("/(auth)");
+  async (err) => {
+    if (
+      err?.response?.status === 401 &&
+      !isAuthEndpoint(err.config?.url) &&
+      !isHandlingUnauthorized
+    ) {
+      isHandlingUnauthorized = true;
+
+      await deleteSecureItem("userToken");
+      unauthorizedHandler?.();
+
+      router.replace("/(auth)/login");
       Toast.show({
         type: "error",
         text1: err?.response?.data?.message || "Unauthorized access.",
         text2: "Login again",
       });
+
+      setTimeout(() => {
+        isHandlingUnauthorized = false;
+      }, 1500);
     }
+
     return Promise.reject(err);
   },
 );

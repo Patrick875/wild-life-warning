@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchAlertSubmissions,
   fetchAlerts,
+  fetchAlertSubmissions,
   fetchFormDetails,
   fetchKoboFormStructure,
   fetchMyAlerts,
@@ -99,7 +99,10 @@ export const useSubmitObservation = ({ formId }: { formId: string }) => {
 
 export const useSubmitFeedback = () => {
   return useMutation({
-    mutationFn: async (data: { message: string; warning_id?: string | number }) => {
+    mutationFn: async (data: {
+      message: string;
+      warning_id?: string | number;
+    }) => {
       return await apiClient
         .post(`/warnings/feedbacks`, data)
         ?.then((res) => res?.data);

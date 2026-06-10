@@ -6,11 +6,14 @@ import {
 } from "@/services/alert";
 import { alertsFormUid } from "@/services/api";
 import { isAxiosError } from "axios";
+import { useRouter } from "expo-router";
 import React from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 export default function CollectScreen() {
+  const router = useRouter();
   const { isLoading: isLoadingFormDetails } = useGetFormDetails({
     formId: alertsFormUid,
   });
@@ -31,20 +34,26 @@ export default function CollectScreen() {
   const handleSubmitData = (data: any) => {
     submitObs(data.submission_data, {
       onSuccess: () => {
-        Alert.alert("Success", "Form submitted successfully!");
+        Toast.show({ type: "success", text1: "Form submitted successfully!" });
+        router.push("/(tabs)");
       },
       onError: (err) => {
         if (isAxiosError(err)) {
+          Toast.show({
+            type: "error",
+            text1: "Submission failed",
+            text2: " Please check the form and try again",
+          });
           console.error("Submit failed:", err.response?.data || err.message);
-          Alert.alert(
-            "Submission failed",
-            err.response?.data?.message ||
-              "Please check the form and try again.",
-          );
+
           return;
         }
         console.error("Error submitting observation:", err);
-        Alert.alert("Submission failed", "Please try again.");
+        Toast.show({
+          type: "error",
+          text1: "Error submitting observation",
+          text2: " Please  try again.",
+        });
       },
     });
   };

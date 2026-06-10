@@ -1,5 +1,6 @@
 import AlertCard from "@/components/AlertCard";
 import LocationCard from "@/components/LocationCard";
+import { useNotification } from "@/context/NotificationContext";
 import { useLocation } from "@/hooks/use-location";
 import { useGetAlerts, useGetMyAlerts } from "@/services/alert";
 import { alertsFormUid } from "@/services/api";
@@ -42,10 +43,14 @@ const AnimatedAlertCard = ({
   onDetailsPress,
   onFeedbackPress,
 }: AnimatedAlertCardProps) => {
+  const { expoPushToken, notification, error } = useNotification();
   const entrance = useRef(new Animated.Value(isNew ? 0 : 1)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (error) {
+      console.log("notifications setup error");
+    }
     if (!isNew) {
       entrance.setValue(1);
       shimmer.setValue(0);
@@ -114,7 +119,11 @@ const AnimatedAlertCard = ({
 };
 
 export default function AlertsScreen() {
-  const { location, normalized_location, errorMsg: locationError } = useLocation();
+  const {
+    location,
+    normalized_location,
+    errorMsg: locationError,
+  } = useLocation();
 
   const [newAlertIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<tab>("nearMe");
@@ -151,7 +160,7 @@ export default function AlertsScreen() {
           <View style={styles.logoContainer}>
             <View>
               <Image
-                source={require("@/assets/images/new-logo.png")}
+                source={require("@/assets/images/app-icon.png")}
                 style={{ width: 36, height: 36 }}
               />
             </View>
