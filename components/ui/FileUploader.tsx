@@ -1,5 +1,6 @@
 // components/FileUploader.tsx
 import axios, { isCancel } from "axios";
+import { getSafeErrorMessage } from "@/services/axiosInstance";
 import { Camera, FileText, ImagePlus, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -392,7 +393,10 @@ export default function FileUploader({
       emitChange([...files, ...uploaded]);
     } catch (error: any) {
       if (!isCancel(error) && error?.name !== "CanceledError") {
-        Alert.alert("Upload error", error.message || "Something went wrong.");
+        Alert.alert(
+          "Upload error",
+          getSafeErrorMessage(error, "Something went wrong."),
+        );
       }
     } finally {
       setUploadState({

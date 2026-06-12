@@ -7,12 +7,12 @@ import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
 import { jwtDecode } from "jwt-decode";
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
-import React, { useContext, useEffect, useState } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react-native";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import DropDownPicker from "react-native-dropdown-picker";
 import {
   Alert,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -60,6 +60,8 @@ export default function DynamicForm({
 }: DynamicFormProps) {
   const { userToken } = useContext(AuthContext);
   const decoded: any = userToken ? jwtDecode(userToken) : null;
+  const scrollRef = useRef<ScrollView>(null);
+  const scrollPositionsRef = useRef<Record<number, number>>({});
 
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [currentLocation, setCurrentLocation] = useState<{
@@ -191,19 +193,6 @@ export default function DynamicForm({
     return choice?.name || optionValue;
   };
 
-  const getSelectedChoiceLabel = (field: Field) => {
-    const value = formData[field.$xpath];
-    if (!value) return "";
-    return (
-      field.selectChoices?.find((choice) => choice.name === value)?.label ||
-      String(value)
-    );
-  };
-
-  const openSelectModal = (field: Field) => {
-    setOpenSelectField(field.$xpath);
-  };
-
   const openDatePicker = (field: Field) => {
     const value = formData[field.$xpath];
     const date = value ? new Date(value) : new Date();
@@ -223,7 +212,7 @@ export default function DynamicForm({
           },
           mode: "date",
         });
-      } catch (e) {
+      } catch {
         // fallback to inline picker if Android API isn't available
         setOpenDateField(field.$xpath);
       }
@@ -350,6 +339,10 @@ export default function DynamicForm({
   const goNext = () => {
     if (!validateFields(activeStep.fields)) return;
     setCurrentStep((step) => Math.min(step + 1, steps.length - 1));
+  };
+
+  const goBack = () => {
+    setCurrentStep((step) => Math.max(step - 1, 0));
   };
 
   const renderSpeciesCards = (field: Field) => {
@@ -537,7 +530,6 @@ export default function DynamicForm({
     // select_one
     if (field.type.startsWith("select_one") && field.selectChoices) {
       const choices = field.selectChoices;
-      const selectedLabel = getSelectedChoiceLabel(field);
       const allowsOtherBehaviour = fieldMatches(field, [
         "behaviour",
         "behavior",
@@ -547,59 +539,55 @@ export default function DynamicForm({
         allowsOtherBehaviour &&
         selectedValue &&
         !choices.some((choice) => choice.name === selectedValue);
+      const isOpen = openSelectField === field.$xpath;
       return (
-        <View key={field.$xpath} style={styles.field}>
+        <View
+          key={field.$xpath}
+          style={[styles.field, isOpen && styles.dropdownFieldOpen]}
+        >
           <Text style={styles.label}>
             {getFieldLabel(field)}
             {field.required ? " *" : ""}
           </Text>
-          <TouchableOpacity
-            style={styles.selectButton}
-            onPress={() => openSelectModal(field)}
-          >
-            <Text
-              style={
-                selectedLabel
-                  ? styles.selectValueText
-                  : styles.selectPlaceholderText
-              }
-            >
-              {selectedLabel || "Select an option"}
-            </Text>
-          </TouchableOpacity>
-
-          <Modal
-            visible={openSelectField === field.$xpath}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setOpenSelectField(null)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>{getFieldLabel(field)}</Text>
-                <ScrollView style={styles.modalOptions}>
-                  {choices.map((choice) => (
-                    <TouchableOpacity
-                      key={choice.name}
-                      style={styles.modalOption}
-                      onPress={() => {
-                        handleChange(field.$xpath, choice.name);
-                        setOpenSelectField(null);
-                      }}
-                    >
-                      <Text style={styles.modalOptionText}>{choice.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <TouchableOpacity
-                  style={styles.modalCancel}
-                  onPress={() => setOpenSelectField(null)}
-                >
-                  <Text style={styles.modalCancelText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
+          <DropDownPicker
+            open={isOpen}
+            value={selectedValue || null}
+            items={choices.map((choice) => ({
+              label: choice.label,
+              value: choice.name,
+            }))}
+            setOpen={(callback) => {
+              const nextOpen =
+                typeof callback === "function" ? callback(isOpen) : callback;
+              setOpenSelectField(nextOpen ? field.$xpath : null);
+            }}
+            setValue={(callback) => {
+              const nextValue =
+                typeof callback === "function"
+                  ? callback(selectedValue || null)
+                  : callback;
+              handleChange(field.$xpath, nextValue);
+            }}
+            onChangeValue={() => setOpenSelectField(null)}
+            placeholder="Select an option"
+            listMode="SCROLLVIEW"
+            maxHeight={220}
+            style={[styles.dropdown, isOpen && styles.dropdownFocused]}
+            dropDownContainerStyle={styles.dropdownContainer}
+            textStyle={styles.dropdownText}
+            placeholderStyle={styles.dropdownPlaceholder}
+            selectedItemLabelStyle={styles.dropdownSelectedText}
+            ArrowDownIconComponent={() => (
+              <ChevronDown size={20} color="#6B7280" />
+            )}
+            ArrowUpIconComponent={() => (
+              <ChevronDown
+                size={20}
+                color="#22C55E"
+                style={styles.dropdownArrowUp}
+              />
+            )}
+          />
           {allowsOtherBehaviour && (
             <View style={styles.otherInput}>
               <Text style={styles.helperLabel}>Other behaviour</Text>
@@ -653,8 +641,18 @@ export default function DynamicForm({
     if (isSuccess) {
       setFormData({});
       setCurrentStep(0);
+      scrollPositionsRef.current = {};
     }
   }, [isSuccess]);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        y: scrollPositionsRef.current[currentStep] || 0,
+        animated: false,
+      });
+    });
+  }, [currentStep]);
 
   const renderMap = () => {
     if (!currentLocation) {
@@ -758,9 +756,10 @@ export default function DynamicForm({
   return (
     <KeyboardAvoidingView
       style={styles.formRoot}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -768,6 +767,10 @@ export default function DynamicForm({
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
         scrollEventThrottle={16}
+        onScroll={(event) => {
+          scrollPositionsRef.current[currentStep] =
+            event.nativeEvent.contentOffset.y;
+        }}
       >
         <View style={styles.stepHeader}>
           <Text style={styles.stepEyebrow}>
@@ -801,7 +804,7 @@ export default function DynamicForm({
           {!isFirstStep && (
             <TouchableOpacity
               style={styles.secondaryButton}
-              onPress={() => setCurrentStep((step) => Math.max(step - 1, 0))}
+              onPress={goBack}
             >
               <ChevronLeft size={18} color="#15803D" />
               <Text style={styles.secondaryButtonText}>Back</Text>
@@ -1017,6 +1020,39 @@ const styles = StyleSheet.create({
     minHeight: 48,
     justifyContent: "center",
   },
+  dropdownFieldOpen: {
+    zIndex: 1000,
+  },
+  dropdown: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 14,
+  },
+  dropdownFocused: {
+    borderColor: "#22C55E",
+  },
+  dropdownContainer: {
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+  },
+  dropdownText: {
+    fontSize: 16,
+    color: "#111827",
+  },
+  dropdownPlaceholder: {
+    color: "#9CA3AF",
+  },
+  dropdownSelectedText: {
+    color: "#15803D",
+    fontWeight: "700",
+  },
+  dropdownArrowUp: {
+    transform: [{ rotate: "180deg" }],
+  },
   selectButton: {
     borderWidth: 1,
     borderColor: "#D1D5DB",
@@ -1033,51 +1069,6 @@ const styles = StyleSheet.create({
   selectValueText: {
     color: "#111827",
     fontSize: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  modalContent: {
-    width: "100%",
-    maxHeight: "80%",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 12,
-  },
-  modalOptions: {
-    maxHeight: 240,
-    marginBottom: 12,
-  },
-  modalOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  modalOptionText: {
-    fontSize: 16,
-    color: "#111827",
-  },
-  modalCancel: {
-    marginTop: 8,
-    alignSelf: "flex-end",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  modalCancelText: {
-    color: "#2563EB",
-    fontSize: 16,
-    fontWeight: "600",
   },
   multiSelectContainer: {
     flexDirection: "row",

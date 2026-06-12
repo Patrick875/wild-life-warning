@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
-import { apiClient } from "./axiosInstance";
+import { apiClient, getSafeErrorMessage } from "./axiosInstance";
 
 export const useLogin = () => {
   return useMutation({
@@ -18,9 +18,10 @@ export const useLogin = () => {
       });
     },
     onError: (err: any) => {
-      console.error("Login error:", err);
-      const message =
-        err.response?.data?.message || "Login failed. Please try again.";
+      const message = getSafeErrorMessage(
+        err,
+        "Login failed. Please try again.",
+      );
       Toast.show({
         type: "error",
         text1: "Login Failed",
@@ -46,8 +47,10 @@ export const useRegister = () => {
       router.push("/(auth)/login");
     },
     onError: (err: any) => {
-      const message =
-        err.response?.data?.message || "Registration failed. Please try again.";
+      const message = getSafeErrorMessage(
+        err,
+        "Registration failed. Please try again.",
+      );
       Toast.show({
         type: "error",
         text1: "Registration Failed",

@@ -5,8 +5,8 @@ import {
   useGetConversations,
   useSendChat,
 } from "@/services/chat";
+import { getSafeErrorMessage } from "@/services/axiosInstance";
 import { useQueryClient } from "@tanstack/react-query";
-import { isAxiosError } from "axios";
 import {
   MessageCircleQuestion,
   Plus,
@@ -16,7 +16,9 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Platform,
   RefreshControl,
   ScrollView,
@@ -26,7 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Toast from "react-native-toast-message";
 
 const EmptyConversationsTop = () => {
@@ -40,18 +42,6 @@ const EmptyConversationsTop = () => {
       </Text>
     </View>
   );
-};
-
-const getErrorMessage = (error: unknown, fallback: string) => {
-  if (isAxiosError(error)) {
-    return error.response?.data?.message || error.message || fallback;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
 };
 
 const formatMessageTime = (value?: string) => {
@@ -95,8 +85,10 @@ const ChatBubble = ({ message }: { message: ChatMessage }) => {
 
 const Ask = () => {
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const [message, setMessage] = useState("");
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [activeConversationId, setActiveConversationId] = useState<
     number | null
   >(null);
@@ -139,6 +131,27 @@ const Ask = () => {
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [messages.length, sendChat.isPending]);
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const showSubscription = Keyboard.addListener("keyboardDidShow", (event) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardHeight(Math.max(event.endCoordinates.height - insets.bottom, 0));
+      requestAnimationFrame(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      });
+    });
+    const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [insets.bottom]);
 
   const refreshChat = () => {
     refetchConversations();
@@ -202,7 +215,7 @@ const Ask = () => {
           Toast.show({
             type: "error",
             text1: "Message not sent",
-            text2: getErrorMessage(error, "Please try again."),
+            text2: getSafeErrorMessage(error, "Please try again."),
           });
         },
       },
@@ -215,7 +228,7 @@ const Ask = () => {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.header}>
           <View>
@@ -306,7 +319,14 @@ const Ask = () => {
         </ScrollView>
 
         <View style={styles.messageBoxWrapper}>
-          <View style={styles.messageBoxCont}>
+          <View
+            style={[
+              styles.messageBoxCont,
+              Platform.OS === "android" &&
+                keyboardHeight > 0 &&
+                styles.messageBoxKeyboardOpen,
+            ]}
+          >
             <TextInput
               style={styles.messageInput}
               placeholder="Ask about wild animal safety..."
@@ -315,6 +335,11 @@ const Ask = () => {
               onChangeText={setMessage}
               multiline
               textAlignVertical="top"
+              onFocus={() =>
+                requestAnimationFrame(() => {
+                  scrollRef.current?.scrollToEnd({ animated: true });
+                })
+              }
             />
 
             <TouchableOpacity
@@ -333,6 +358,9 @@ const Ask = () => {
               )}
             </TouchableOpacity>
           </View>
+          {Platform.OS === "android" && keyboardHeight > 0 && (
+            <View style={{ height: keyboardHeight }} />
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -561,6 +589,10 @@ const styles = StyleSheet.create({
     padding: 8,
     borderWidth: 1,
     borderColor: "#DDE8D5",
+  },
+
+  messageBoxKeyboardOpen: {
+    borderColor: "#2F5D3A",
   },
 
   messageInput: {

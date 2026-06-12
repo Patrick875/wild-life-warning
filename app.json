@@ -21,6 +21,7 @@
         "backgroundImage": "./assets/images/app-icon.png",
         "monochromeImage": "./assets/images/app-icon.png"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.patrick875.wildlifewarning",
       "googleServicesFile": "./google-services.json",

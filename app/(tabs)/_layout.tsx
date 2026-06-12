@@ -1,3 +1,4 @@
+import { usePusher } from "@/hooks/use-pusher";
 import { Tabs } from "expo-router";
 import {
   TriangleAlert as AlertTriangle,
@@ -10,11 +11,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
-
+  usePusher();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: {
           backgroundColor: "white",
           borderTopWidth: 0,

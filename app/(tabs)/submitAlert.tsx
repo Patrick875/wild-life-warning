@@ -5,7 +5,7 @@ import {
   useSubmitObservation,
 } from "@/services/alert";
 import { alertsFormUid } from "@/services/api";
-import { isAxiosError } from "axios";
+import { getSafeErrorMessage } from "@/services/axiosInstance";
 import { useRouter } from "expo-router";
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
@@ -38,21 +38,13 @@ export default function CollectScreen() {
         router.push("/(tabs)");
       },
       onError: (err) => {
-        if (isAxiosError(err)) {
-          Toast.show({
-            type: "error",
-            text1: "Submission failed",
-            text2: " Please check the form and try again",
-          });
-          console.error("Submit failed:", err.response?.data || err.message);
-
-          return;
-        }
-        console.error("Error submitting observation:", err);
         Toast.show({
           type: "error",
-          text1: "Error submitting observation",
-          text2: " Please  try again.",
+          text1: "Submission failed",
+          text2: getSafeErrorMessage(
+            err,
+            "Please check the form and try again.",
+          ),
         });
       },
     });
@@ -74,7 +66,9 @@ export default function CollectScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.centered}>
           <Text style={styles.errorText}>Error loading form</Text>
-          <Text style={styles.errorDetails}>{error.message}</Text>
+          <Text style={styles.errorDetails}>
+            {getSafeErrorMessage(error, "Please try again in a moment.")}
+          </Text>
         </View>
       </SafeAreaView>
     );

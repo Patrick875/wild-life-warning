@@ -1,6 +1,5 @@
 import { useRegister } from "@/services/auth";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { Picker } from "@react-native-picker/picker";
 import { Link } from "expo-router";
 import {
   ArrowLeft,
@@ -16,9 +15,9 @@ import {
 } from "lucide-react-native";
 import React, { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import DropDownPicker from "react-native-dropdown-picker";
 import {
   KeyboardAvoidingView,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -59,8 +58,7 @@ const schema = yup.object().shape({
 
 export default function SignUpScreen() {
   const { mutate, isPending } = useRegister();
-  const [showOccupationPicker, setShowOccupationPicker] = useState(false);
-  const [tempOccupation, setTempOccupation] = useState("");
+  const [occupationOpen, setOccupationOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -68,8 +66,6 @@ export default function SignUpScreen() {
   const {
     control,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(schema),
@@ -84,8 +80,6 @@ export default function SignUpScreen() {
     },
   });
 
-  // const phoneDigits = watch("phoneNumber");
-
   const onSubmit = (data: any) => {
     const payload = {
       ...data,
@@ -95,11 +89,6 @@ export default function SignUpScreen() {
     };
     const { password_confirm, ...submitablePay } = payload;
     mutate(submitablePay);
-  };
-
-  const handleOccupationConfirm = () => {
-    setValue("occupation", tempOccupation);
-    setShowOccupationPicker(false);
   };
 
   return (
@@ -219,36 +208,54 @@ export default function SignUpScreen() {
             <Controller
               control={control}
               name="occupation"
-              render={({ field: { value } }) => (
-                <View style={styles.inputGroup}>
+              render={({ field: { onChange, value } }) => (
+                <View
+                  style={[
+                    styles.inputGroup,
+                    occupationOpen && styles.dropdownInputGroup,
+                  ]}
+                >
                   <Text style={styles.label}>Occupation</Text>
-                  <TouchableOpacity
-                    style={[styles.pickerButton]}
-                    onPress={() => {
-                      setTempOccupation(value);
-                      setShowOccupationPicker(true);
-                    }}
-                  >
-                    <View style={styles.pickerButtonContent}>
-                      <Briefcase
-                        size={20}
-                        color="#9CA3AF"
-                        style={styles.inputIcon}
-                      />
-                      <Text
-                        style={[
-                          styles.pickerButtonText,
-                          !value && styles.pickerPlaceholder,
-                        ]}
-                      >
-                        {value
-                          ? OCCUPATIONS.find((occ) => occ.value === value)
-                              ?.label
-                          : "Select your occupation"}
-                      </Text>
-                    </View>
-                    <ChevronDown size={20} color="#6B7280" />
-                  </TouchableOpacity>
+                  <View style={styles.dropdownRow}>
+                    <Briefcase
+                      size={20}
+                      color={occupationOpen ? "#22C55E" : "#9CA3AF"}
+                      style={styles.dropdownIcon}
+                    />
+                    <DropDownPicker
+                      open={occupationOpen}
+                      value={value || null}
+                      items={OCCUPATIONS}
+                      setOpen={setOccupationOpen}
+                      setValue={(callback) => {
+                        const nextValue =
+                          typeof callback === "function"
+                            ? callback(value)
+                            : callback;
+                        onChange(nextValue);
+                      }}
+                      placeholder="Select your occupation"
+                      listMode="SCROLLVIEW"
+                      style={[
+                        styles.dropdown,
+                        occupationOpen && styles.dropdownFocused,
+                      ]}
+                      dropDownContainerStyle={styles.dropdownContainer}
+                      textStyle={styles.dropdownText}
+                      placeholderStyle={styles.dropdownPlaceholder}
+                      selectedItemLabelStyle={styles.dropdownSelectedText}
+                      ArrowDownIconComponent={() => (
+                        <ChevronDown size={20} color="#6B7280" />
+                      )}
+                      ArrowUpIconComponent={() => (
+                        <ChevronDown
+                          size={20}
+                          color="#22C55E"
+                          style={styles.dropdownArrowUp}
+                        />
+                      )}
+                    />
+                  </View>
                   {errors.occupation && (
                     <Text style={styles.errorText}>
                       {errors.occupation.message}
@@ -416,41 +423,6 @@ export default function SignUpScreen() {
           </View>
         </ScrollView>
 
-        {/* Occupation Modal */}
-        <Modal
-          visible={showOccupationPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowOccupationPicker(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity
-                  onPress={() => setShowOccupationPicker(false)}
-                >
-                  <Text style={styles.modalCancelButton}>Cancel</Text>
-                </TouchableOpacity>
-                <Text style={styles.modalTitle}>Select Occupation</Text>
-                <TouchableOpacity onPress={handleOccupationConfirm}>
-                  <Text style={styles.modalDoneButton}>Done</Text>
-                </TouchableOpacity>
-              </View>
-              <Picker
-                selectedValue={tempOccupation}
-                onValueChange={(itemValue) => setTempOccupation(itemValue)}
-              >
-                {OCCUPATIONS.map((occupation) => (
-                  <Picker.Item
-                    key={occupation.value}
-                    label={occupation.label}
-                    value={occupation.value}
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -505,6 +477,9 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 20,
   },
+  dropdownInputGroup: {
+    zIndex: 1000,
+  },
   label: {
     fontSize: 14,
     fontWeight: "600",
@@ -548,33 +523,47 @@ const styles = StyleSheet.create({
     right: 16,
     padding: 4,
   },
-  pickerButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  dropdownRow: {
+    position: "relative",
+    zIndex: 1000,
+  },
+  dropdownIcon: {
+    position: "absolute",
+    left: 16,
+    top: 18,
+    zIndex: 1001,
+  },
+  dropdown: {
+    minHeight: 56,
     borderWidth: 2,
     borderColor: "#E5E7EB",
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
     backgroundColor: "#F9FAFB",
-    height: 56,
+    paddingLeft: 48,
+    paddingRight: 14,
   },
-  pickerButtonFocused: {
+  dropdownFocused: {
     borderColor: "#22C55E",
     backgroundColor: "#FFFFFF",
   },
-  pickerButtonContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
+  dropdownContainer: {
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
   },
-  pickerButtonText: {
+  dropdownText: {
     fontSize: 16,
     color: "#1F2937",
   },
-  pickerPlaceholder: {
+  dropdownPlaceholder: {
     color: "#9CA3AF",
+  },
+  dropdownSelectedText: {
+    color: "#15803D",
+    fontWeight: "700",
+  },
+  dropdownArrowUp: {
+    transform: [{ rotate: "180deg" }],
   },
   signUpButton: {
     backgroundColor: "#22C55E",
@@ -616,47 +605,6 @@ const styles = StyleSheet.create({
     color: "#22C55E",
     fontSize: 15,
     fontWeight: "700",
-  },
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    backgroundColor: "white",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  modalCancelButton: {
-    fontSize: 16,
-    color: "#6B7280",
-  },
-  modalDoneButton: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#22C55E",
-  },
-  modalPicker: {
-    width: "100%",
   },
   errorText: {
     color: "red",

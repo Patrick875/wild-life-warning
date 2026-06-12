@@ -1,4 +1,5 @@
 import { useGetFeedbacks, useSubmitFeedback } from "@/services/alert";
+import { getSafeErrorMessage } from "@/services/axiosInstance";
 import { getSelectedAlert } from "@/services/selectedAlert";
 import { formatDistanceToNow } from "date-fns";
 import { router, useLocalSearchParams } from "expo-router";
@@ -51,7 +52,7 @@ export default function WarningFeedbacksScreen() {
         onError: (err: any) => {
           Toast.show({
             type: "error",
-            text1: err?.response?.data?.message || "Failed adding feedback",
+            text1: getSafeErrorMessage(err, "Failed adding feedback"),
           });
         },
       },

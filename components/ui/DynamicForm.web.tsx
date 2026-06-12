@@ -1,11 +1,11 @@
 import FileUploader, { UploadedFile } from "@/components/ui/FileUploader";
 import { AuthContext } from "@/context/AuthContext";
 import { baseUrl } from "@/services/api";
-import { Picker } from "@react-native-picker/picker";
-import { ChevronLeft, ChevronRight } from "lucide-react-native";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react-native";
 import * as Location from "expo-location";
 import { jwtDecode } from "jwt-decode";
 import React, { useContext, useEffect, useState } from "react";
+import DropDownPicker from "react-native-dropdown-picker";
 import {
   Alert,
   ScrollView,
@@ -63,6 +63,7 @@ export default function DynamicForm({
     longitude: number;
   } | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [openSelectField, setOpenSelectField] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -76,7 +77,7 @@ export default function DynamicForm({
             longitude: loc.coords.longitude,
           });
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
     })();
@@ -351,30 +352,55 @@ export default function DynamicForm({
         allowsOtherBehaviour &&
         selectedValue &&
         !choices.some((choice) => choice.name === selectedValue);
+      const isOpen = openSelectField === field.$xpath;
       return (
-        <View key={field.$xpath} style={styles.field}>
+        <View
+          key={field.$xpath}
+          style={[styles.field, isOpen && styles.dropdownFieldOpen]}
+        >
           <Text style={styles.label}>
             {getFieldLabel(field)}
             {field.required ? " *" : ""}
           </Text>
-          <View style={styles.pickerWrapper}>
-            <Picker
-              mode="dropdown"
-              style={styles.picker}
-              itemStyle={styles.pickerItem}
-              selectedValue={formData[field.$xpath] || ""}
-              onValueChange={(value) => handleChange(field.$xpath, value)}
-            >
-              <Picker.Item label="Select..." value="" />
-              {choices.map((choice) => (
-                <Picker.Item
-                  key={choice.name}
-                  label={choice.label}
-                  value={choice.name}
-                />
-              ))}
-            </Picker>
-          </View>
+          <DropDownPicker
+            open={isOpen}
+            value={selectedValue || null}
+            items={choices.map((choice) => ({
+              label: choice.label,
+              value: choice.name,
+            }))}
+            setOpen={(callback) => {
+              const nextOpen =
+                typeof callback === "function" ? callback(isOpen) : callback;
+              setOpenSelectField(nextOpen ? field.$xpath : null);
+            }}
+            setValue={(callback) => {
+              const nextValue =
+                typeof callback === "function"
+                  ? callback(selectedValue || null)
+                  : callback;
+              handleChange(field.$xpath, nextValue);
+            }}
+            onChangeValue={() => setOpenSelectField(null)}
+            placeholder="Select an option"
+            listMode="SCROLLVIEW"
+            maxHeight={220}
+            style={[styles.dropdown, isOpen && styles.dropdownFocused]}
+            dropDownContainerStyle={styles.dropdownContainer}
+            textStyle={styles.dropdownText}
+            placeholderStyle={styles.dropdownPlaceholder}
+            selectedItemLabelStyle={styles.dropdownSelectedText}
+            ArrowDownIconComponent={() => (
+              <ChevronDown size={20} color="#6B7280" />
+            )}
+            ArrowUpIconComponent={() => (
+              <ChevronDown
+                size={20}
+                color="#22C55E"
+                style={styles.dropdownArrowUp}
+              />
+            )}
+          />
           {allowsOtherBehaviour && (
             <View style={styles.otherInput}>
               <Text style={styles.helperLabel}>Other behaviour</Text>
@@ -595,21 +621,38 @@ const styles = StyleSheet.create({
   otherInput: {
     marginTop: 12,
   },
-  pickerWrapper: {
+  dropdownFieldOpen: {
+    zIndex: 1000,
+  },
+  dropdown: {
+    minHeight: 52,
     borderWidth: 1,
     borderColor: "#D1D5DB",
     borderRadius: 12,
-    overflow: "hidden",
     backgroundColor: "#fff",
-    minHeight: 48,
-    justifyContent: "center",
+    paddingHorizontal: 14,
   },
-  picker: {
-    width: "100%",
-    height: 48,
+  dropdownFocused: {
+    borderColor: "#22C55E",
   },
-  pickerItem: {
+  dropdownContainer: {
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+  },
+  dropdownText: {
     fontSize: 16,
+    color: "#111827",
+  },
+  dropdownPlaceholder: {
+    color: "#9CA3AF",
+  },
+  dropdownSelectedText: {
+    color: "#15803D",
+    fontWeight: "700",
+  },
+  dropdownArrowUp: {
+    transform: [{ rotate: "180deg" }],
   },
   multiSelectContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
