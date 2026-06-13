@@ -3,6 +3,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import UserProvider from "@/context/UserContext";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useContext } from "react";
@@ -27,22 +28,14 @@ const queryClient = new QueryClient({
   },
 });
 
-// Notifications.setNotificationHandler({
-//   handleNotification: async () => ({
-//     shouldPlaySound: false,
-//     shouldSetBadge: false,
-//     shouldShowBanner: true,
-//     shouldShowList: true,
-//   }),
-// });
-
-// Notifications.scheduleNotificationAsync({
-//   content: {
-//     title: "Look at that notification",
-//     body: "I'm so proud of myself!",
-//   },
-//   trigger: null,
-// });
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 function RootNavigator() {
   const { isAuthLoading, userToken } = useContext(AuthContext);

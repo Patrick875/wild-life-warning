@@ -2,7 +2,109 @@ import { AuthContext } from "@/context/AuthContext";
 import { UserContext } from "@/context/UserContext";
 import { apiClient } from "@/services/axiosInstance";
 import { Pusher, PusherEvent } from "@pusher/pusher-websocket-react-native";
+import * as Notifications from "expo-notifications";
+import { jwtDecode } from "jwt-decode";
 import { useContext, useEffect, useRef } from "react";
+import { Platform } from "react-native";
+
+type DecodedToken = {
+  sub?: string | number;
+};
+
+type PusherNotificationPayload = {
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+};
+
+const parseEventData = (data: PusherEvent["data"]) => {
+  if (typeof data !== "string") return data;
+
+  try {
+    return JSON.parse(data);
+  } catch {
+    return data;
+  }
+};
+
+const stringifyBody = (value: unknown) => {
+  if (typeof value === "string") return value;
+  if (value == null) return undefined;
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const buildNotificationPayload = (
+  event: PusherEvent,
+): PusherNotificationPayload => {
+  const parsedData = parseEventData(event.data);
+  const data: Record<string, unknown> =
+    parsedData && typeof parsedData === "object" && !Array.isArray(parsedData)
+      ? (parsedData as Record<string, unknown>)
+      : { payload: parsedData };
+
+  const title =
+    stringifyBody(data.title) ??
+    stringifyBody(data.heading) ??
+    "Wildlife warning";
+  const body =
+    stringifyBody(data.body) ??
+    stringifyBody(data.message) ??
+    stringifyBody(data.description) ??
+    stringifyBody(parsedData) ??
+    "You received a new wildlife alert.";
+
+  return {
+    title,
+    body,
+    data: {
+      ...data,
+      pusherEventName: event.eventName,
+      pusherChannelName: event.channelName,
+    },
+  };
+};
+
+const ensureLocalNotificationSetup = async () => {
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF231F7C",
+    });
+  }
+
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  if (existingStatus === "granted") return true;
+
+  const { status } = await Notifications.requestPermissionsAsync();
+  return status === "granted";
+};
+
+const showPusherNotification = async (event: PusherEvent) => {
+  const hasPermission = await ensureLocalNotificationSetup();
+  if (!hasPermission) {
+    console.log("Notification permission denied; skipping local notification.");
+    return;
+  }
+
+  const notification = buildNotificationPayload(event);
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: notification.title,
+      body: notification.body,
+      data: notification.data,
+      sound: true,
+    },
+    trigger: null,
+  });
+};
 
 export const usePusher = () => {
   const { user } = useContext(UserContext);
@@ -11,9 +113,11 @@ export const usePusher = () => {
 
   useEffect(() => {
     let isMounted = true;
-    if (!user) return;
+    if (!user || !userToken) return;
+    const decoded = jwtDecode<DecodedToken>(userToken);
+    if (!decoded.sub) return;
 
-    const dynamicChannel = `private-user-${user.id}`;
+    const dynamicChannel = `private-user-${decoded.sub}`;
 
     const initPusher = async () => {
       try {
@@ -23,6 +127,9 @@ export const usePusher = () => {
         await pusher.init({
           cluster: process.env.EXPO_PUBLIC_PUSHER_CLUSTER as string,
           apiKey: process.env.EXPO_PUBLIC_PUSHER_API_KEY as string,
+          onError: (message, code, error) => {
+            console.error("Pusher error:", { message, code, error });
+          },
           onAuthorizer: async (channelName: string, socketId: string) => {
             try {
               // 🛠️ Construct form data parameter string cleanly
@@ -62,8 +169,13 @@ export const usePusher = () => {
         if (isMounted) {
           await pusher.subscribe({
             channelName: dynamicChannel,
-            onEvent: (event: PusherEvent) => {
-              console.log("pusher-event received:", event);
+            onEvent: async (event: PusherEvent) => {
+              console.log("pusher-event received:", event?.data);
+              try {
+                await showPusherNotification(event);
+              } catch (error) {
+                console.error("Failed to show Pusher notification:", error);
+              }
             },
           });
           console.log(`Subscribed to personal channel: ${dynamicChannel}`);
@@ -93,5 +205,5 @@ export const usePusher = () => {
       };
       disconnectPusher();
     };
-  }, [user]);
+  }, [user, userToken]);
 };

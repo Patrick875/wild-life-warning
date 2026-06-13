@@ -1,4 +1,5 @@
 import { registerForPushNotificationsAsync } from "@/utils/registerForPushNotificationsAsync";
+import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import React, {
   createContext,
@@ -48,15 +49,17 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       (error) => setError(error),
     );
 
-    Notifications.getDevicePushTokenAsync().then(
-      (devicePushToken) => {
-        console.log({ devicePushToken });
-        setDevicePushToken(devicePushToken.data);
-      },
-      (error) => {
-        setError(error);
-      },
-    );
+    if (Device.isDevice) {
+      Notifications.getDevicePushTokenAsync().then(
+        (devicePushToken) => {
+          console.log({ devicePushToken });
+          setDevicePushToken(devicePushToken.data);
+        },
+        (error) => {
+          setError(error);
+        },
+      );
+    }
 
     const notificationListener = Notifications.addNotificationReceivedListener(
       (notification) => {
