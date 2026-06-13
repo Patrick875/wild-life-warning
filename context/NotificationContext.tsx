@@ -1,4 +1,10 @@
 import { registerForPushNotificationsAsync } from "@/utils/registerForPushNotificationsAsync";
+import {
+  applyWarningNotificationToCache,
+  openWarningFromNotification,
+  toWarningNotificationData,
+} from "@/utils/warningNotifications";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import React, {
@@ -42,6 +48,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const [notification, setNotification] =
     useState<Notifications.Notification | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     registerForPushNotificationsAsync().then(
@@ -52,7 +59,6 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     if (Device.isDevice) {
       Notifications.getDevicePushTokenAsync().then(
         (devicePushToken) => {
-          console.log({ devicePushToken });
           setDevicePushToken(devicePushToken.data);
         },
         (error) => {
@@ -63,23 +69,28 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
     const notificationListener = Notifications.addNotificationReceivedListener(
       (notification) => {
-        console.log("received while the app is open");
-        console.log("🔔 Notification Received: ", notification);
+        const notificationData = toWarningNotificationData(
+          notification.request.content.data,
+        );
+        applyWarningNotificationToCache(queryClient, notificationData);
         setNotification(notification);
       },
     );
 
     const responseListener =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log("user interacts with notification");
-        console.log("🔔 Notification Response: ", response);
+        const notificationData = toWarningNotificationData(
+          response.notification.request.content.data,
+        );
+        applyWarningNotificationToCache(queryClient, notificationData);
+        openWarningFromNotification(queryClient, notificationData);
       });
 
     return () => {
       notificationListener.remove();
       responseListener.remove();
     };
-  }, []);
+  }, [queryClient]);
 
   return (
     <NotificationContext.Provider

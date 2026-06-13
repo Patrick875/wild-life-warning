@@ -13,6 +13,7 @@ import DropDownPicker from "react-native-dropdown-picker";
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -535,11 +536,91 @@ export default function DynamicForm({
         "behavior",
       ]);
       const selectedValue = formData[field.$xpath];
+      const selectedChoice = choices.find(
+        (choice) => choice.name === selectedValue,
+      );
       const isOtherValue =
         allowsOtherBehaviour &&
         selectedValue &&
         !choices.some((choice) => choice.name === selectedValue);
       const isOpen = openSelectField === field.$xpath;
+      const usesIosModalSelect =
+        Platform.OS === "ios" &&
+        fieldMatches(field, ["threat_level", "urgency"]);
+
+      if (usesIosModalSelect) {
+        return (
+          <View key={field.$xpath} style={styles.field}>
+            <Text style={styles.label}>
+              {getFieldLabel(field)}
+              {field.required ? " *" : ""}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.modalSelectButton,
+                isOpen && styles.modalSelectButtonFocused,
+              ]}
+              activeOpacity={0.8}
+              onPress={() => setOpenSelectField(field.$xpath)}
+            >
+              <Text
+                style={
+                  selectedChoice
+                    ? styles.selectValueText
+                    : styles.selectPlaceholderText
+                }
+              >
+                {selectedChoice?.label || "Select an option"}
+              </Text>
+              <ChevronDown size={20} color={isOpen ? "#22C55E" : "#6B7280"} />
+            </TouchableOpacity>
+            <Modal
+              visible={isOpen}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setOpenSelectField(null)}
+            >
+              <View style={styles.selectModalOverlay}>
+                <TouchableOpacity
+                  style={StyleSheet.absoluteFill}
+                  activeOpacity={1}
+                  onPress={() => setOpenSelectField(null)}
+                />
+                <View style={styles.selectModalSheet}>
+                  <Text style={styles.selectModalTitle}>{getFieldLabel(field)}</Text>
+                  {choices.map((choice) => {
+                    const active = choice.name === selectedValue;
+                    return (
+                      <TouchableOpacity
+                        key={choice.name}
+                        style={[
+                          styles.selectModalOption,
+                          active && styles.selectModalOptionActive,
+                        ]}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          handleChange(field.$xpath, choice.name);
+                          setOpenSelectField(null);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.selectModalOptionText,
+                            active && styles.selectModalOptionTextActive,
+                          ]}
+                        >
+                          {choice.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </Modal>
+          </View>
+        );
+      }
+
       return (
         <View
           key={field.$xpath}
@@ -1069,6 +1150,58 @@ const styles = StyleSheet.create({
   selectValueText: {
     color: "#111827",
     fontSize: 16,
+  },
+  modalSelectButton: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 12,
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  modalSelectButtonFocused: {
+    borderColor: "#22C55E",
+  },
+  selectModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.36)",
+    justifyContent: "flex-end",
+  },
+  selectModalSheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    paddingBottom: 28,
+  },
+  selectModalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 12,
+  },
+  selectModalOption: {
+    minHeight: 48,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    justifyContent: "center",
+    marginBottom: 8,
+    backgroundColor: "#F9FAFB",
+  },
+  selectModalOptionActive: {
+    backgroundColor: "#F0FDF4",
+  },
+  selectModalOptionText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  selectModalOptionTextActive: {
+    color: "#15803D",
   },
   multiSelectContainer: {
     flexDirection: "row",

@@ -26,7 +26,6 @@ export async function registerForPushNotificationsAsync() {
   }
 
   if (!Device.isDevice) {
-    console.log("Skipping Expo push token registration on simulator.");
     return null;
   }
 
@@ -42,7 +41,6 @@ export async function registerForPushNotificationsAsync() {
         projectId,
       })
     ).data;
-    console.log(pushTokenString);
     return pushTokenString;
   } catch (e: unknown) {
     throw new Error(`${e}`);

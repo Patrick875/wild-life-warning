@@ -314,7 +314,7 @@ export default function FileUploader({
         },
       })
       .catch((err) => {
-        console.log("\n\n\n\n\ upload-error\n\n ", err, "\n\n\n\n end \n\n ");
+        console.error("Upload failed", err);
       });
 
     const data = response?.data;

@@ -1,7 +1,11 @@
 import { AuthContext } from "@/context/AuthContext";
-import { UserContext } from "@/context/UserContext";
 import { apiClient } from "@/services/axiosInstance";
+import {
+  applyWarningNotificationToCache,
+  toWarningNotificationData,
+} from "@/utils/warningNotifications";
 import { Pusher, PusherEvent } from "@pusher/pusher-websocket-react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { jwtDecode } from "jwt-decode";
 import { useContext, useEffect, useRef } from "react";
@@ -42,10 +46,7 @@ const buildNotificationPayload = (
   event: PusherEvent,
 ): PusherNotificationPayload => {
   const parsedData = parseEventData(event.data);
-  const data: Record<string, unknown> =
-    parsedData && typeof parsedData === "object" && !Array.isArray(parsedData)
-      ? (parsedData as Record<string, unknown>)
-      : { payload: parsedData };
+  const data = toWarningNotificationData(parsedData);
 
   const title =
     stringifyBody(data.title) ??
@@ -89,7 +90,6 @@ const ensureLocalNotificationSetup = async () => {
 const showPusherNotification = async (event: PusherEvent) => {
   const hasPermission = await ensureLocalNotificationSetup();
   if (!hasPermission) {
-    console.log("Notification permission denied; skipping local notification.");
     return;
   }
 
@@ -107,13 +107,13 @@ const showPusherNotification = async (event: PusherEvent) => {
 };
 
 export const usePusher = () => {
-  const { user } = useContext(UserContext);
   const { userToken } = useContext(AuthContext);
+  const queryClient = useQueryClient();
   const pusherRef = useRef<Pusher | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    if (!user || !userToken) return;
+    if (!userToken) return;
     const decoded = jwtDecode<DecodedToken>(userToken);
     if (!decoded.sub) return;
 
@@ -152,8 +152,6 @@ export const usePusher = () => {
                 );
               }
 
-              console.log("flask-response-auth-granted", authData);
-
               // This MUST return exactly: { auth: "..." }
               return authData;
             } catch (error) {
@@ -164,21 +162,20 @@ export const usePusher = () => {
         });
 
         await pusher.connect();
-        console.log("Pusher notifications connected successfully");
 
         if (isMounted) {
           await pusher.subscribe({
             channelName: dynamicChannel,
             onEvent: async (event: PusherEvent) => {
-              console.log("pusher-event received:", event?.data);
               try {
+                const notificationData = toWarningNotificationData(event.data);
+                applyWarningNotificationToCache(queryClient, notificationData);
                 await showPusherNotification(event);
               } catch (error) {
                 console.error("Failed to show Pusher notification:", error);
               }
             },
           });
-          console.log(`Subscribed to personal channel: ${dynamicChannel}`);
         }
       } catch (err) {
         console.error("Pusher initialization failed:", err);
@@ -197,13 +194,12 @@ export const usePusher = () => {
               channelName: dynamicChannel,
             });
             await pusherRef.current.disconnect();
-            console.log("Pusher disconnected safely");
           } catch (e) {
-            console.log("Error during pusher lifecycle cleanup");
+            console.error("Error during pusher lifecycle cleanup", e);
           }
         }
       };
       disconnectPusher();
     };
-  }, [user, userToken]);
+  }, [queryClient, userToken]);
 };

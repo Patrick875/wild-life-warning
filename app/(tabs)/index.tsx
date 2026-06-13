@@ -1,6 +1,5 @@
 import AlertCard from "@/components/AlertCard";
 import LocationCard from "@/components/LocationCard";
-import { useNotification } from "@/context/NotificationContext";
 import { useLocation } from "@/hooks/use-location";
 import { useGetAlerts, useGetMyAlerts } from "@/services/alert";
 import { alertsFormUid } from "@/services/api";
@@ -43,14 +42,10 @@ const AnimatedAlertCard = ({
   onDetailsPress,
   onFeedbackPress,
 }: AnimatedAlertCardProps) => {
-  const { expoPushToken, notification, error } = useNotification();
   const entrance = useRef(new Animated.Value(isNew ? 0 : 1)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (error) {
-      console.log("notifications setup error");
-    }
     if (!isNew) {
       entrance.setValue(1);
       shimmer.setValue(0);

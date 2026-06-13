@@ -2,6 +2,7 @@ import { AuthContext, AuthProvider } from "@/context/AuthContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import UserProvider from "@/context/UserContext";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";
+import { usePusher } from "@/hooks/use-pusher";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
@@ -37,6 +38,11 @@ Notifications.setNotificationHandler({
   }),
 });
 
+function PusherConnection() {
+  usePusher();
+  return null;
+}
+
 function RootNavigator() {
   const { isAuthLoading, userToken } = useContext(AuthContext);
 
@@ -66,19 +72,20 @@ export default function RootLayout() {
 
   return (
     <>
-      <NotificationProvider>
-        <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <NotificationProvider>
           <SafeAreaProvider>
             <AuthProvider>
               <UserProvider>
+                <PusherConnection />
                 <RootNavigator />
               </UserProvider>
             </AuthProvider>
           </SafeAreaProvider>
 
           <StatusBar style="auto" />
-        </QueryClientProvider>
-      </NotificationProvider>
+        </NotificationProvider>
+      </QueryClientProvider>
     </>
   );
 }
