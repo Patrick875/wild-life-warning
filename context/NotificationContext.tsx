@@ -1,4 +1,5 @@
 import { registerForPushNotificationsAsync } from "@/utils/registerForPushNotificationsAsync";
+import { canUseNativePushNotifications } from "@/utils/nativeCapabilities";
 import {
   applyWarningNotificationToCache,
   openWarningFromNotification,
@@ -6,7 +7,7 @@ import {
 } from "@/utils/warningNotifications";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
+import type { Notification } from "expo-notifications";
 import React, {
   createContext,
   ReactNode,
@@ -18,7 +19,7 @@ import React, {
 interface NotificationContextType {
   expoPushToken: string | null;
   devicePushToken: string | null;
-  notification: Notifications.Notification | null;
+  notification: Notification | null;
   error: Error | null;
 }
 
@@ -45,50 +46,82 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 }) => {
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
   const [devicePushToken, setDevicePushToken] = useState<string | null>(null);
-  const [notification, setNotification] =
-    useState<Notifications.Notification | null>(null);
+  const [notification, setNotification] = useState<Notification | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    registerForPushNotificationsAsync().then(
-      (token) => setExpoPushToken(token),
-      (error) => setError(error),
-    );
-
-    if (Device.isDevice) {
-      Notifications.getDevicePushTokenAsync().then(
-        (devicePushToken) => {
-          setDevicePushToken(devicePushToken.data);
-        },
-        (error) => {
-          setError(error);
-        },
-      );
+    if (!canUseNativePushNotifications) {
+      return;
     }
 
-    const notificationListener = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        const notificationData = toWarningNotificationData(
-          notification.request.content.data,
+    let isMounted = true;
+    let removeNotificationListener: (() => void) | undefined;
+    let removeResponseListener: (() => void) | undefined;
+
+    const setupNotifications = async () => {
+      const Notifications = await import("expo-notifications");
+
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+
+      if (!isMounted) return;
+
+      const notificationListener =
+        Notifications.addNotificationReceivedListener((notification) => {
+          const notificationData = toWarningNotificationData(
+            notification.request.content.data,
+          );
+          applyWarningNotificationToCache(queryClient, notificationData);
+          setNotification(notification);
+        });
+      removeNotificationListener = () => notificationListener.remove();
+
+      const responseListener =
+        Notifications.addNotificationResponseReceivedListener((response) => {
+          const notificationData = toWarningNotificationData(
+            response.notification.request.content.data,
+          );
+          applyWarningNotificationToCache(queryClient, notificationData);
+          openWarningFromNotification(queryClient, notificationData);
+        });
+      removeResponseListener = () => responseListener.remove();
+
+      if (Device.isDevice) {
+        Notifications.getDevicePushTokenAsync().then(
+          (devicePushToken) => {
+            if (isMounted) setDevicePushToken(devicePushToken.data);
+          },
+          (error) => {
+            if (isMounted) setError(error);
+          },
         );
-        applyWarningNotificationToCache(queryClient, notificationData);
-        setNotification(notification);
+      }
+    };
+
+    setupNotifications().catch((error) => {
+      if (isMounted) setError(error);
+    });
+
+    registerForPushNotificationsAsync().then(
+      (token) => {
+        if (isMounted) setExpoPushToken(token);
+      },
+      (error) => {
+        if (isMounted) setError(error);
       },
     );
 
-    const responseListener =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        const notificationData = toWarningNotificationData(
-          response.notification.request.content.data,
-        );
-        applyWarningNotificationToCache(queryClient, notificationData);
-        openWarningFromNotification(queryClient, notificationData);
-      });
-
     return () => {
-      notificationListener.remove();
-      responseListener.remove();
+      isMounted = false;
+      removeNotificationListener?.();
+      removeResponseListener?.();
     };
   }, [queryClient]);
 

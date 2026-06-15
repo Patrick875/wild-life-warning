@@ -1,9 +1,15 @@
 import Constants from "expo-constants";
 import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
+import { canUseNativePushNotifications } from "@/utils/nativeCapabilities";
 import { Platform } from "react-native";
 
 export async function registerForPushNotificationsAsync() {
+  if (!canUseNativePushNotifications) {
+    return null;
+  }
+
+  const Notifications = await import("expo-notifications");
+
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",

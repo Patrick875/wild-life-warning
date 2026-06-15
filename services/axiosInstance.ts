@@ -57,6 +57,10 @@ const isAuthEndpoint = (url?: string) => {
   return !!url && url.startsWith("/auth/");
 };
 
+const isNonSessionEndpoint = (url?: string) => {
+  return !!url && (url.includes("/pusher/auth") || url.includes("/uploads"));
+};
+
 apiClient.interceptors.request.use(async (config) => {
   const token = await getSecureItem("userToken");
   if (token) {
@@ -73,6 +77,7 @@ apiClient.interceptors.response.use(
     if (
       err?.response?.status === 401 &&
       !isAuthEndpoint(err.config?.url) &&
+      !isNonSessionEndpoint(err.config?.url) &&
       !isHandlingUnauthorized
     ) {
       isHandlingUnauthorized = true;

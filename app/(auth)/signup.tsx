@@ -34,15 +34,35 @@ const OCCUPATIONS = [
   { label: "Guide", value: "PARK_GUARD" },
 ];
 
+const phoneNumberRegex = /^\+?\d{10,12}$/;
+
+const sanitizePhoneNumber = (value: string) => {
+  const trimmed = value.trim();
+  const hasLeadingPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "").slice(0, 12);
+
+  return `${hasLeadingPlus ? "+" : ""}${digits}`;
+};
+
 const schema = yup.object().shape({
   fullName: yup.string().trim().required("Full name is required"),
   phoneNumber: yup
     .string()
-    .matches(/^[0-9]{9}$/, "Phone number must be 9 digits")
+    .trim()
+    .matches(
+      phoneNumberRegex,
+      "Phone number must have 10 to 12 digits and may start with +",
+    )
     .required("Phone number is required"),
   occupation: yup.string().required("Occupation is required"),
   organization: yup.string().trim().required("Organization is required"),
-  email: yup.string().email("Enter a valid email").optional(),
+  email: yup
+    .string()
+    .transform((value) => (value === "" ? undefined : value))
+    .trim()
+    .lowercase()
+    .email("Enter a valid email")
+    .optional(),
   password: yup
     .string()
     .required("Password is required")
@@ -81,10 +101,11 @@ export default function SignUpScreen() {
   });
 
   const onSubmit = (data: any) => {
+    const email = data.email?.trim().toLowerCase();
     const payload = {
       ...data,
-      phoneNumber: `${data.phoneNumber}`,
-      email: `email-${Math.ceil(Math.random() * 3)}@emai.com`,
+      phoneNumber: sanitizePhoneNumber(data.phoneNumber),
+      email: email || `email-${Date.now()}@wildlife-warning.app`,
       role: data.occupation,
     };
     const { password_confirm, ...submitablePay } = payload;
@@ -185,14 +206,13 @@ export default function SignUpScreen() {
                       keyboardType="phone-pad"
                       value={value}
                       onChangeText={(text) => {
-                        const cleaned = text.replace(/[^0-9]/g, "");
-                        onChange(cleaned);
+                        onChange(sanitizePhoneNumber(text));
                       }}
                       onFocus={() => setFocusedInput("phone_number")}
                       onBlur={() => setFocusedInput(null)}
-                      placeholder="7XX XXX XXX"
+                      placeholder="+2507XXXXXXX"
                       placeholderTextColor="#9CA3AF"
-                      maxLength={9}
+                      maxLength={13}
                     />
                   </View>
                   {errors.phoneNumber && (
@@ -317,7 +337,7 @@ export default function SignUpScreen() {
                     <TextInput
                       style={styles.input}
                       value={value}
-                      onChangeText={onChange}
+                      onChangeText={(text) => onChange(text.trim())}
                       placeholder="Enter your email"
                       placeholderTextColor="#9CA3AF"
                       keyboardType="email-address"

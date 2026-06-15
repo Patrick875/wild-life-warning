@@ -1,6 +1,6 @@
 // components/FileUploader.tsx
-import axios, { isCancel } from "axios";
-import { getSafeErrorMessage } from "@/services/axiosInstance";
+import { isCancel } from "axios";
+import { apiClient, getSafeErrorMessage } from "@/services/axiosInstance";
 import { Camera, FileText, ImagePlus, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -304,20 +304,16 @@ export default function FileUploader({
       } as any);
     }
 
-    const response = await axios
-      .post(uploadUrl, formData, {
-        headers: uploadHeaders,
-        signal,
-        onUploadProgress: (event) => {
-          if (!event.total) return;
-          onProgress?.(Math.min(event.loaded / event.total, 0.98));
-        },
-      })
-      .catch((err) => {
-        console.error("Upload failed", err);
-      });
+    const response = await apiClient.post(uploadUrl, formData, {
+      headers: uploadHeaders,
+      signal,
+      onUploadProgress: (event) => {
+        if (!event.total) return;
+        onProgress?.(Math.min(event.loaded / event.total, 0.98));
+      },
+    });
 
-    const data = response?.data;
+    const data = response.data;
     onProgress?.(1);
     return getUploadUrl(data, file.uri);
   };

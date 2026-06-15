@@ -4,9 +4,12 @@ import {
   applyWarningNotificationToCache,
   toWarningNotificationData,
 } from "@/utils/warningNotifications";
-import { Pusher, PusherEvent } from "@pusher/pusher-websocket-react-native";
+import { canUseNativePusher } from "@/utils/nativeCapabilities";
+import type {
+  Pusher as PusherClient,
+  PusherEvent,
+} from "@pusher/pusher-websocket-react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import * as Notifications from "expo-notifications";
 import { jwtDecode } from "jwt-decode";
 import { useContext, useEffect, useRef } from "react";
 import { Platform } from "react-native";
@@ -71,6 +74,8 @@ const buildNotificationPayload = (
 };
 
 const ensureLocalNotificationSetup = async () => {
+  const Notifications = await import("expo-notifications");
+
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",
@@ -93,6 +98,7 @@ const showPusherNotification = async (event: PusherEvent) => {
     return;
   }
 
+  const Notifications = await import("expo-notifications");
   const notification = buildNotificationPayload(event);
 
   await Notifications.scheduleNotificationAsync({
@@ -109,10 +115,11 @@ const showPusherNotification = async (event: PusherEvent) => {
 export const usePusher = () => {
   const { userToken } = useContext(AuthContext);
   const queryClient = useQueryClient();
-  const pusherRef = useRef<Pusher | null>(null);
+  const pusherRef = useRef<PusherClient | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+    if (!canUseNativePusher()) return;
     if (!userToken) return;
     const decoded = jwtDecode<DecodedToken>(userToken);
     if (!decoded.sub) return;
@@ -121,6 +128,9 @@ export const usePusher = () => {
 
     const initPusher = async () => {
       try {
+        const { Pusher } = await import(
+          "@pusher/pusher-websocket-react-native"
+        );
         const pusher = Pusher.getInstance();
         pusherRef.current = pusher;
 

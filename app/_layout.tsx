@@ -4,7 +4,6 @@ import UserProvider from "@/context/UserContext";
 import { useFrameworkReady } from "@/hooks/useFrameworkReady";
 import { usePusher } from "@/hooks/use-pusher";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useContext } from "react";
@@ -27,15 +26,6 @@ const queryClient = new QueryClient({
       retry: shouldRetryRequest,
     },
   },
-});
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
 });
 
 function PusherConnection() {

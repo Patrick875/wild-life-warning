@@ -22,6 +22,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { WebView } from "react-native-webview";
 interface Field {
   $xpath: string;
   type: string;
@@ -51,6 +52,72 @@ const formatKoboText = (value?: string | string[] | Record<string, any>) => {
   }
   return "";
 };
+
+const buildLeafletMapHtml = (latitude: number, longitude: number) => `
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <style>
+      html, body, #map {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #eef6e9;
+      }
+      .leaflet-control-attribution {
+        font-size: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      var selected = [${latitude}, ${longitude}];
+      var map = L.map("map", {
+        zoomControl: true,
+        attributionControl: true
+      }).setView(selected, 15);
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors"
+      }).addTo(map);
+
+      var marker = L.marker(selected, { draggable: true }).addTo(map);
+
+      function sendLocation(latlng) {
+        var payload = JSON.stringify({
+          latitude: latlng.lat,
+          longitude: latlng.lng
+        });
+        window.ReactNativeWebView.postMessage(payload);
+      }
+
+      map.on("click", function(event) {
+        marker.setLatLng(event.latlng);
+        sendLocation(event.latlng);
+      });
+
+      marker.on("dragend", function(event) {
+        sendLocation(event.target.getLatLng());
+      });
+    </script>
+  </body>
+</html>
+`;
 
 export default function DynamicForm({
   fields,
@@ -754,7 +821,6 @@ export default function DynamicForm({
       );
     }
 
-    // Web doesn't support react-native-maps; show a simple fallback
     if (Platform.OS === "web") {
       return (
         <View style={styles.alwaysMapContainer}>
@@ -776,45 +842,51 @@ export default function DynamicForm({
       );
     }
 
-    // Require react-native-maps at runtime on native platforms only
-    // (avoids importing native-only modules on web)
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const RNMaps: any = require("react-native-maps");
-    const MapViewComp = RNMaps.default || RNMaps.MapView || RNMaps;
-    const MarkerComp = RNMaps.Marker;
-
     return (
       <View style={styles.alwaysMapContainer}>
-        <View
-          style={styles.mapViewport}
-          pointerEvents={isMapInteractive ? "auto" : "none"}
-        >
-          <MapViewComp
-            style={styles.alwaysMap}
-            region={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: 0.01,
-              longitudeDelta: 0.01,
-            }}
-            scrollEnabled={isMapInteractive}
-            zoomEnabled={isMapInteractive}
-            rotateEnabled={isMapInteractive}
-            pitchEnabled={isMapInteractive}
-            onPress={(event: any) => {
-              const coordinate = event.nativeEvent.coordinate;
-              setCurrentLocation(coordinate);
-            }}
-          >
-            <MarkerComp
-              coordinate={currentLocation}
-              draggable={isMapInteractive}
-              onDragEnd={(event: any) => {
-                const coordinate = event.nativeEvent.coordinate;
-                setCurrentLocation(coordinate);
+        <View style={styles.mapViewport}>
+          {isMapInteractive ? (
+            <WebView
+              originWhitelist={["*"]}
+              source={{
+                html: buildLeafletMapHtml(
+                  currentLocation.latitude,
+                  currentLocation.longitude,
+                ),
+              }}
+              javaScriptEnabled
+              domStorageEnabled
+              startInLoadingState
+              style={styles.alwaysMap}
+              onMessage={(event) => {
+                try {
+                  const coordinate = JSON.parse(event.nativeEvent.data);
+                  const latitude = Number(coordinate.latitude);
+                  const longitude = Number(coordinate.longitude);
+
+                  if (
+                    Number.isFinite(latitude) &&
+                    Number.isFinite(longitude)
+                  ) {
+                    setCurrentLocation({ latitude, longitude });
+                  }
+                } catch {
+                  // Ignore malformed map messages.
+                }
               }}
             />
-          </MapViewComp>
+          ) : (
+            <View style={styles.mapLockedPreview}>
+              <Text style={styles.mapLockedTitle}>Location selected</Text>
+              <Text style={styles.mapInfoText}>
+                📍 {currentLocation.latitude.toFixed(4)},{" "}
+                {currentLocation.longitude.toFixed(4)}
+              </Text>
+              <Text style={styles.mapLockedText}>
+                Tap Edit map to adjust the warning location.
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.mapInfo}>
           <Text style={[styles.mapInfoText, styles.mapInfoLocation]}>
@@ -1242,6 +1314,26 @@ const styles = StyleSheet.create({
   },
   alwaysMap: {
     flex: 1,
+  },
+  mapLockedPreview: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 18,
+    backgroundColor: "#EEF6E9",
+  },
+  mapLockedTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0A3909",
+    marginBottom: 6,
+  },
+  mapLockedText: {
+    marginTop: 8,
+    fontSize: 13,
+    lineHeight: 18,
+    color: "#5F6B5B",
+    textAlign: "center",
   },
   mapInfo: {
     padding: 8,
