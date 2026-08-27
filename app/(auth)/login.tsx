@@ -35,6 +35,12 @@ const loginSchema = yup.object().shape({
     .min(6, "Password must be at least 6 characters"),
 });
 
+const normalizeLoginIdentifier = (value: string) => {
+  const trimmed = value.trim();
+  if (trimmed.includes("@")) return trimmed.toLowerCase();
+  return trimmed.replace(/\D/g, "");
+};
+
 export default function LoginScreen() {
   const router = useRouter();
   const { mutate, isPending } = useLogin();
@@ -58,7 +64,7 @@ export default function LoginScreen() {
   const onSubmit = (data: { identifier: string; password: string }) => {
     mutate(
       {
-        identifier: data.identifier.trim(),
+        identifier: normalizeLoginIdentifier(data.identifier),
         password: data.password.trim(),
       },
       {

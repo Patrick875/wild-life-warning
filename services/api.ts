@@ -11,7 +11,7 @@ import { apiClient, baseUrl } from "./axiosInstance";
 
 export { baseUrl };
 
-const BASE_URL = "https://kc.kobotoolbox.org/api/v2/assets";
+const BASE_URL = "https://kf.kobotoolbox.org/api/v2/assets";
 const TOKEN = "c6a41ab079fb6b99fc8b69f9f4bc6eb91f1ca0a1";
 
 const parseKoboTextValue = (value: unknown): string => {

@@ -8,7 +8,8 @@ const localApiHost = Platform.OS === "android" ? "10.0.2.2" : "localhost";
 
 // export const baseUrl = `http://${localApiHost}:4800/api/v1`;
 export const baseUrl = "https://wild-life-conserv-2.onrender.com/api/v1";
-
+// export const baseUrl = "https://wild-life-conserv-2.onrender.com/api/v1";
+//250780303031   kuxvytTodfam$Ko4
 export const apiClient = axios.create({
   baseURL: baseUrl,
 });

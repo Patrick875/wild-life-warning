@@ -128,73 +128,8 @@ export default function SettingsScreen() {
             />
           ),
         },
-        // {
-        //   id: "newsletter",
-        //   icon: Bell,
-        //   title: "Newsletter",
-        //   subtitle: "Wildlife conservation news and tips",
-        //   showChevron: false,
-        //   rightElement: (
-        //     <Switch
-        //       value={notifications.newsletter}
-        //       onValueChange={(value) =>
-        //         setNotifications((prev) => ({ ...prev, newsletter: value }))
-        //       }
-        //       trackColor={{ false: "#E5E7EB", true: "#22C55E" }}
-        //       thumbColor="white"
-        //     />
-        //   ),
-        // },
       ],
     },
-    // {
-    //   title: "Location",
-    //   data: [
-    //     {
-    //       id: "location-services",
-    //       icon: MapPin,
-    //       title: "Location Services",
-    //       subtitle: "Enable location for better wildlife tracking",
-    //       showChevron: false,
-    //       rightElement: (
-    //         <Switch
-    //           value={location.enabled}
-    //           onValueChange={(value) =>
-    //             setLocation((prev) => ({ ...prev, enabled: value }))
-    //           }
-    //           trackColor={{ false: "#E5E7EB", true: "#22C55E" }}
-    //           thumbColor="white"
-    //         />
-    //       ),
-    //     },
-    //     {
-    //       id: "location-accuracy",
-    //       icon: MapPin,
-    //       title: "Location Accuracy",
-    //       subtitle: `Currently: ${location.accuracy}`,
-    //       showChevron: false,
-    //     },
-    //   ],
-    // },
-    // {
-    //   title: "Support",
-    //   data: [
-    //     {
-    //       id: "help",
-    //       icon: HelpCircle,
-    //       title: "Help & FAQ",
-    //       subtitle: "Get answers to common questions",
-    //       showChevron: false,
-    //     },
-    //     {
-    //       id: "contact",
-    //       icon: HelpCircle,
-    //       title: "Contact Support",
-    //       subtitle: "Get in touch with our team",
-    //       showChevron: false,
-    //     },
-    //   ],
-    // },
   ];
 
   const renderSectionHeader = ({ section }: { section: any }) => (

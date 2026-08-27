@@ -176,6 +176,17 @@ export default function DynamicForm({
     }
   };
 
+  const getEvidenceFiles = () => {
+    return fields.reduce<UploadedFile[]>((files, field) => {
+      if (!fieldMatches(field, ["eveidence", "evidence"])) return files;
+
+      const value = formData[field.$xpath];
+      if (!Array.isArray(value)) return files;
+
+      return [...files, ...value];
+    }, []);
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
     const requiredFields = fields.filter((field) => field.required);
@@ -190,22 +201,33 @@ export default function DynamicForm({
       return;
     }
 
+    const evidenceFiles = getEvidenceFiles();
+    const serializedEvidence = JSON.stringify(evidenceFiles);
+    const submissionData = {
+      ...formData,
+      ...fields.reduce<Record<string, string>>((data, field) => {
+        if (fieldMatches(field, ["eveidence", "evidence"])) {
+          data[field.$xpath] = serializedEvidence;
+        }
+        return data;
+      }, {}),
+      evidence: serializedEvidence,
+      location:
+        alwaysShowMap && currentLocation
+          ? {
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+            }
+          : undefined,
+    };
+
     const submitData = {
       kobo_form_id: fields[0]?.$form_id || "unknown_form",
       status: "pending",
       submitted_at: new Date().toISOString(),
       username: decoded?.username || "",
       device_id: "web_device",
-      submission_data: {
-        ...formData,
-        location:
-          alwaysShowMap && currentLocation
-            ? {
-                latitude: currentLocation.latitude,
-                longitude: currentLocation.longitude,
-              }
-            : undefined,
-      },
+      submission_data: submissionData,
     };
 
     if (onSubmit) await onSubmit(submitData);
@@ -299,7 +321,7 @@ export default function DynamicForm({
             maxFiles={8}
             maxSizeMB={450}
             buttonText="Add evidence"
-            uploadUrl={baseUrl + "/uploads/"}
+            uploadUrl={baseUrl + "/uploads"}
             uploadKey={field.$xpath}
             uploadMode="immediate"
           />

@@ -14,6 +14,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Modal,
+  NativeModules,
   Platform,
   ScrollView,
   StyleSheet,
@@ -22,7 +23,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { WebView } from "react-native-webview";
 interface Field {
   $xpath: string;
   type: string;
@@ -118,6 +118,27 @@ const buildLeafletMapHtml = (latitude: number, longitude: number) => `
   </body>
 </html>
 `;
+
+let OptionalWebView: React.ComponentType<any> | null | undefined;
+
+const getOptionalWebView = () => {
+  if (Platform.OS === "web") return null;
+  if (OptionalWebView !== undefined) return OptionalWebView;
+  if (!NativeModules.RNCWebViewModule) {
+    OptionalWebView = null;
+    return OptionalWebView;
+  }
+
+  try {
+    // This native module is only present after rebuilding the dev app.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    OptionalWebView = require("react-native-webview").WebView || null;
+  } catch {
+    OptionalWebView = null;
+  }
+
+  return OptionalWebView;
+};
 
 export default function DynamicForm({
   fields,
@@ -336,6 +357,17 @@ export default function DynamicForm({
     }
   };
 
+  const getEvidenceFiles = () => {
+    return fields.reduce<UploadedFile[]>((files, field) => {
+      if (!fieldMatches(field, ["eveidence", "evidence"])) return files;
+
+      const value = formData[field.$xpath];
+      if (!Array.isArray(value)) return files;
+
+      return [...files, ...value];
+    }, []);
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
@@ -353,23 +385,33 @@ export default function DynamicForm({
       return;
     }
 
+    const evidenceFiles = getEvidenceFiles();
+    const serializedEvidence = JSON.stringify(evidenceFiles);
+    const submissionData = {
+      ...formData,
+      ...fields.reduce<Record<string, string>>((data, field) => {
+        if (fieldMatches(field, ["eveidence", "evidence"])) {
+          data[field.$xpath] = serializedEvidence;
+        }
+        return data;
+      }, {}),
+      evidence: serializedEvidence,
+      location:
+        alwaysShowMap && currentLocation
+          ? {
+              latitude: currentLocation.latitude,
+              longitude: currentLocation.longitude,
+            }
+          : undefined,
+    };
+
     const submitData = {
       kobo_form_id: alertsFormUid,
       status: "pending",
       submitted_at: new Date().toISOString(),
       username: decoded?.username || "",
       device_id: "mobile_device_123",
-      submission_data: {
-        ...formData,
-        evidence: formData?.evidence ? JSON.stringify(formData.evidence) : "",
-        location:
-          alwaysShowMap && currentLocation
-            ? {
-                latitude: currentLocation.latitude,
-                longitude: currentLocation.longitude,
-              }
-            : undefined,
-      },
+      submission_data: submissionData,
     };
 
     if (alwaysShowMap && !currentLocation) {
@@ -481,7 +523,7 @@ export default function DynamicForm({
             maxFiles={8}
             maxSizeMB={450}
             buttonText="Add evidence"
-            uploadUrl={baseUrl + "/uploads/"}
+            uploadUrl={baseUrl + "/uploads"}
             uploadKey={field.$xpath}
             uploadMode="immediate"
           />
@@ -611,11 +653,9 @@ export default function DynamicForm({
         selectedValue &&
         !choices.some((choice) => choice.name === selectedValue);
       const isOpen = openSelectField === field.$xpath;
-      const usesIosModalSelect =
-        Platform.OS === "ios" &&
-        fieldMatches(field, ["threat_level", "urgency"]);
+      const usesNativeModalSelect = Platform.OS !== "web";
 
-      if (usesIosModalSelect) {
+      if (usesNativeModalSelect) {
         return (
           <View key={field.$xpath} style={styles.field}>
             <Text style={styles.label}>
@@ -655,32 +695,34 @@ export default function DynamicForm({
                 />
                 <View style={styles.selectModalSheet}>
                   <Text style={styles.selectModalTitle}>{getFieldLabel(field)}</Text>
-                  {choices.map((choice) => {
-                    const active = choice.name === selectedValue;
-                    return (
-                      <TouchableOpacity
-                        key={choice.name}
-                        style={[
-                          styles.selectModalOption,
-                          active && styles.selectModalOptionActive,
-                        ]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                          handleChange(field.$xpath, choice.name);
-                          setOpenSelectField(null);
-                        }}
-                      >
-                        <Text
+                  <ScrollView style={styles.selectModalOptions}>
+                    {choices.map((choice) => {
+                      const active = choice.name === selectedValue;
+                      return (
+                        <TouchableOpacity
+                          key={choice.name}
                           style={[
-                            styles.selectModalOptionText,
-                            active && styles.selectModalOptionTextActive,
+                            styles.selectModalOption,
+                            active && styles.selectModalOptionActive,
                           ]}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            handleChange(field.$xpath, choice.name);
+                            setOpenSelectField(null);
+                          }}
                         >
-                          {choice.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
+                          <Text
+                            style={[
+                              styles.selectModalOptionText,
+                              active && styles.selectModalOptionTextActive,
+                            ]}
+                          >
+                            {choice.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
               </View>
             </Modal>
@@ -842,11 +884,13 @@ export default function DynamicForm({
       );
     }
 
+    const WebViewComponent = getOptionalWebView();
+
     return (
       <View style={styles.alwaysMapContainer}>
         <View style={styles.mapViewport}>
-          {isMapInteractive ? (
-            <WebView
+          {isMapInteractive && WebViewComponent ? (
+            <WebViewComponent
               originWhitelist={["*"]}
               source={{
                 html: buildLeafletMapHtml(
@@ -858,7 +902,7 @@ export default function DynamicForm({
               domStorageEnabled
               startInLoadingState
               style={styles.alwaysMap}
-              onMessage={(event) => {
+              onMessage={(event: { nativeEvent: { data: string } }) => {
                 try {
                   const coordinate = JSON.parse(event.nativeEvent.data);
                   const latitude = Number(coordinate.latitude);
@@ -883,7 +927,9 @@ export default function DynamicForm({
                 {currentLocation.longitude.toFixed(4)}
               </Text>
               <Text style={styles.mapLockedText}>
-                Tap Edit map to adjust the warning location.
+                {WebViewComponent
+                  ? "Tap Edit map to adjust the warning location."
+                  : "Rebuild the app to enable map selection."}
               </Text>
             </View>
           )}
@@ -894,8 +940,12 @@ export default function DynamicForm({
             {currentLocation.longitude.toFixed(4)}
           </Text>
           <TouchableOpacity
-            style={styles.mapEditButton}
+            style={[
+              styles.mapEditButton,
+              !WebViewComponent && styles.mapEditButtonDisabled,
+            ]}
             onPress={() => setIsMapInteractive((enabled) => !enabled)}
+            disabled={!WebViewComponent}
           >
             <Text style={styles.mapEditButtonText}>
               {isMapInteractive ? "Done" : "Edit map"}
@@ -909,7 +959,7 @@ export default function DynamicForm({
   return (
     <KeyboardAvoidingView
       style={styles.formRoot}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <ScrollView
         ref={scrollRef}
@@ -1256,6 +1306,9 @@ const styles = StyleSheet.create({
     color: "#111827",
     marginBottom: 12,
   },
+  selectModalOptions: {
+    maxHeight: 360,
+  },
   selectModalOption: {
     minHeight: 48,
     borderRadius: 10,
@@ -1355,6 +1408,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     backgroundColor: "#DCFCE7",
+  },
+  mapEditButtonDisabled: {
+    opacity: 0.5,
   },
   mapEditButtonText: {
     fontSize: 13,

@@ -3,11 +3,17 @@ import { NativeModules, Platform } from "react-native";
 
 export const isExpoGo = Constants.appOwnership === "expo";
 
+const pushNotificationsDisabled =
+  process.env.EXPO_PUBLIC_DISABLE_PUSH_NOTIFICATIONS === "true";
+
 export const canUseNativePushNotifications =
-  !isExpoGo && Platform.OS !== "web";
+  !pushNotificationsDisabled && !isExpoGo && Platform.OS !== "web";
 
 export const isNativePusherModuleAvailable = () =>
   Boolean(NativeModules.PusherWebsocketReactNative);
 
 export const canUseNativePusher = () =>
-  !isExpoGo && Platform.OS !== "web" && isNativePusherModuleAvailable();
+  !pushNotificationsDisabled &&
+  !isExpoGo &&
+  Platform.OS !== "web" &&
+  isNativePusherModuleAvailable();

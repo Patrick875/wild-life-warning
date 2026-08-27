@@ -1,6 +1,7 @@
 // components/FileUploader.tsx
-import { isCancel } from "axios";
 import { apiClient, getSafeErrorMessage } from "@/services/axiosInstance";
+import { getSecureItem } from "@/utils/secureStore";
+import { isCancel } from "axios";
 import { Camera, FileText, ImagePlus, X } from "lucide-react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -102,6 +103,152 @@ const getUploadUrl = (data: any, fallbackUri: string) => {
 
 const unwrapExpoModule = <T extends Record<string, any>>(module: T) => {
   return (module.default || module) as T;
+};
+
+const mimeTypesByExtension: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  heic: "image/heic",
+  heif: "image/heif",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  pdf: "application/pdf",
+};
+
+const getFileExtension = (value?: string | null) => {
+  const cleanValue = value?.split("?")[0]?.split("#")[0] || "";
+  const match = cleanValue.match(/\.([a-zA-Z0-9]+)$/);
+  return match?.[1]?.toLowerCase();
+};
+
+const getMimeType = (
+  mimeType: string | null | undefined,
+  name: string | null | undefined,
+  uri: string,
+  fallback: string,
+) => {
+  if (mimeType && mimeType !== "application/octet-stream") return mimeType;
+
+  const extension = getFileExtension(name) || getFileExtension(uri);
+  return (extension && mimeTypesByExtension[extension]) || fallback;
+};
+
+const getUploadKind = (
+  mimeType: string | undefined,
+  fallback: UploadKind = "image",
+): UploadKind => {
+  if (mimeType?.startsWith("video")) return "video";
+  if (mimeType?.startsWith("image")) return "image";
+  return fallback;
+};
+
+const getFileName = (
+  name: string | null | undefined,
+  uri: string,
+  fallbackPrefix: string,
+  mimeType: string,
+) => {
+  const uriName = decodeURIComponent(uri.split("?")[0]?.split("/").pop() || "");
+  const resolvedName = name || uriName;
+  if (resolvedName && getFileExtension(resolvedName)) return resolvedName;
+
+  const extension =
+    Object.entries(mimeTypesByExtension).find(
+      ([, mappedMimeType]) => mappedMimeType === mimeType,
+    )?.[0] || "bin";
+
+  return `${resolvedName || fallbackPrefix}-${Date.now()}.${extension}`;
+};
+
+const createCanceledUploadError = () => {
+  const error = new Error("Upload cancelled");
+  error.name = "CanceledError";
+  return error;
+};
+
+const uploadFormData = async (
+  uploadUrl: string,
+  formData: FormData,
+  options: {
+    headers?: Record<string, string>;
+    signal?: AbortSignal;
+    onProgress?: (progress: number) => void;
+  } = {},
+) => {
+  const token = await getSecureItem("userToken");
+
+  return new Promise<any>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+
+    const abortUpload = () => {
+      xhr.abort();
+      reject(createCanceledUploadError());
+    };
+
+    if (options.signal?.aborted) {
+      abortUpload();
+      return;
+    }
+
+    options.signal?.addEventListener("abort", abortUpload, { once: true });
+
+    xhr.open("POST", uploadUrl);
+
+    if (token) {
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    }
+
+    Object.entries(options.headers || {}).forEach(([key, value]) => {
+      if (key.toLowerCase() !== "content-type") {
+        xhr.setRequestHeader(key, value);
+      }
+    });
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      options.onProgress?.(Math.min(event.loaded / event.total, 0.98));
+    };
+
+    xhr.onload = () => {
+      options.signal?.removeEventListener("abort", abortUpload);
+
+      let data: any = null;
+      try {
+        data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {
+        data = xhr.responseText;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(data);
+        return;
+      }
+
+      reject(new Error(data?.message || "Upload failed. Please try again."));
+    };
+
+    xhr.onerror = () => {
+      options.signal?.removeEventListener("abort", abortUpload);
+      reject(new Error("Upload failed. Please check your connection."));
+    };
+
+    xhr.ontimeout = () => {
+      options.signal?.removeEventListener("abort", abortUpload);
+      reject(new Error("Upload timed out. Please try again."));
+    };
+
+    xhr.onabort = () => {
+      options.signal?.removeEventListener("abort", abortUpload);
+      reject(createCanceledUploadError());
+    };
+
+    xhr.timeout = 120000;
+    xhr.send(formData);
+  });
 };
 
 const loadImagePicker = async (): Promise<ImagePickerModule | null> => {
@@ -215,12 +362,22 @@ export default function FileUploader({
   };
 
   const normalizeAsset = (asset: ImagePickerAsset): UploadedFile => {
-    const mimeType = asset.mimeType;
-    const type: UploadKind = mimeType?.startsWith("video") ? "video" : "image";
+    const assetType = (asset as any).type;
+    const fallbackKind: UploadKind = assetType === "video" ? "video" : "image";
+    const fallbackMimeType =
+      fallbackKind === "video" ? "video/mp4" : "image/jpeg";
+    const mimeType = getMimeType(
+      asset.mimeType,
+      asset.fileName,
+      asset.uri,
+      fallbackMimeType,
+    );
+    const type = getUploadKind(mimeType, fallbackKind);
+    const name = getFileName(asset.fileName, asset.uri, "upload", mimeType);
 
     return {
       uri: asset.uri,
-      name: asset.fileName || `upload-${Date.now()}`,
+      name,
       mimeType,
       size: asset.fileSize,
       type,
@@ -237,16 +394,18 @@ export default function FileUploader({
     lastModified?: number;
     file?: Blob;
   }): UploadedFile => {
-    const mimeType = asset.mimeType;
-    const type: UploadKind = mimeType?.startsWith("video")
-      ? "video"
-      : mimeType?.startsWith("image")
-        ? "image"
-        : "document";
+    const mimeType = getMimeType(
+      asset.mimeType,
+      asset.name,
+      asset.uri,
+      "application/octet-stream",
+    );
+    const type = getUploadKind(mimeType, "document");
+    const name = getFileName(asset.name, asset.uri, "upload", mimeType);
 
     return {
       uri: asset.uri,
-      name: asset.name,
+      name,
       mimeType,
       size: asset.size,
       type,
@@ -300,8 +459,23 @@ export default function FileUploader({
       formData.append(uploadFieldName, {
         uri: file.uri,
         name: file.name,
-        type: file.mimeType || "application/octet-stream",
+        type: getMimeType(
+          file.mimeType,
+          file.name,
+          file.uri,
+          "application/octet-stream",
+        ),
       } as any);
+    }
+
+    if (Platform.OS === "android") {
+      const data = await uploadFormData(uploadUrl, formData, {
+        headers: uploadHeaders,
+        signal,
+        onProgress,
+      });
+      onProgress?.(1);
+      return getUploadUrl(data, file.uri);
     }
 
     const response = await apiClient.post(uploadUrl, formData, {
@@ -313,9 +487,8 @@ export default function FileUploader({
       },
     });
 
-    const data = response.data;
     onProgress?.(1);
-    return getUploadUrl(data, file.uri);
+    return getUploadUrl(response.data, file.uri);
   };
 
   const uploadFiles = async (newFiles: UploadedFile[]) => {
@@ -674,7 +847,8 @@ export default function FileUploader({
                 style={styles.removeButton}
                 onPress={() => removeFile(index)}
               >
-                <Text style={styles.removeText}>×</Text>
+                <X size={14} color="white" />
+                <Text style={styles.removeText}>Remove</Text>
               </Pressable>
             </View>
           ))}
@@ -791,7 +965,7 @@ const styles = StyleSheet.create({
   previewItem: {
     width: 110,
     marginRight: 12,
-    position: "relative",
+    marginBottom: 12,
   },
   imagePreview: {
     width: 110,
@@ -818,19 +992,18 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   removeButton: {
-    position: "absolute",
-    right: -6,
-    top: -6,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    minHeight: 30,
+    marginTop: 6,
+    borderRadius: 8,
     backgroundColor: "#EF4444",
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 4,
   },
   removeText: {
     color: "white",
-    fontSize: 18,
-    lineHeight: 20,
+    fontSize: 11,
+    fontWeight: "700",
   },
 });

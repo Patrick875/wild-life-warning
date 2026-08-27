@@ -37,13 +37,15 @@ const ProfileCard = () => {
           <Text style={styles.email}>{user?.email || ""}</Text>
         </View>
         <View style={styles.roleContainer}>
-          <Text style={styles.role}>{user?.role || ""}</Text>
+          <Text style={styles.role}>
+            {user?.role?.replaceAll("_", " ") || ""}
+          </Text>
         </View>
       </View>
       <View style={styles.orgOccCont}>
         <View style={styles.orgOccCard}>
           <Text style={styles.orgOccCardLabel}>Occupation</Text>
-          <Text>{user?.occupation || ""}</Text>
+          <Text>{user?.occupation?.replaceAll("_", " ") || ""}</Text>
         </View>
         <View style={styles.orgOccCard}>
           <Text style={styles.orgOccCardLabel}>Organization</Text>

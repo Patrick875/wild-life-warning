@@ -17,7 +17,9 @@ import React, { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import DropDownPicker from "react-native-dropdown-picker";
 import {
+  Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -34,14 +36,30 @@ const OCCUPATIONS = [
   { label: "Guide", value: "PARK_GUARD" },
 ];
 
-const phoneNumberRegex = /^\+?\d{10,12}$/;
+const EAC_COUNTRY_CODES = [
+  { country: "Rwanda", code: "250", localLength: 9, example: "788123456" },
+  { country: "Kenya", code: "254", localLength: 9, example: "712345678" },
+  { country: "Uganda", code: "256", localLength: 9, example: "712345678" },
+  { country: "Tanzania", code: "255", localLength: 9, example: "712345678" },
+  { country: "Burundi", code: "257", localLength: 8, example: "79123456" },
+  { country: "DR Congo", code: "243", localLength: 9, example: "812345678" },
+  { country: "South Sudan", code: "211", localLength: 9, example: "912345678" },
+  { country: "Somalia", code: "252", localLength: 8, example: "61123456" },
+];
+
+const DEFAULT_COUNTRY_CODE = EAC_COUNTRY_CODES[0];
 
 const sanitizePhoneNumber = (value: string) => {
-  const trimmed = value.trim();
-  const hasLeadingPlus = trimmed.startsWith("+");
-  const digits = trimmed.replace(/\D/g, "").slice(0, 12);
+  return value.replace(/\D/g, "");
+};
 
-  return `${hasLeadingPlus ? "+" : ""}${digits}`;
+const normalizeLocalPhoneNumber = (value: string) => {
+  return sanitizePhoneNumber(value).replace(/^0+/, "");
+};
+
+const formatPhonePreview = (countryCode: string, localNumber: string) => {
+  const normalizedLocalNumber = normalizeLocalPhoneNumber(localNumber);
+  return normalizedLocalNumber ? `+${countryCode}${normalizedLocalNumber}` : "";
 };
 
 const schema = yup.object().shape({
@@ -49,9 +67,13 @@ const schema = yup.object().shape({
   phoneNumber: yup
     .string()
     .trim()
-    .matches(
-      phoneNumberRegex,
-      "Phone number must have 10 to 12 digits and may start with +",
+    .test(
+      "valid-local-phone",
+      "Enter the local number without the country code",
+      (value) => {
+        const normalized = normalizeLocalPhoneNumber(value || "");
+        return normalized.length >= 8 && normalized.length <= 10;
+      },
     )
     .required("Phone number is required"),
   occupation: yup.string().required("Occupation is required"),
@@ -67,8 +89,8 @@ const schema = yup.object().shape({
     .string()
     .required("Password is required")
     .matches(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d@$!%*?&]{8,}$/,
-      "Password must be at least 8 characters, include 1 uppercase, 1 lowercase, and 1 number",
+      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&_])[A-Za-z\d@$!%*#?&_]{6,}$/,
+      "Password must be at least 6 characters and include 1 letter, 1 number, and 1 special character.",
     ),
   password_confirm: yup
     .string()
@@ -79,6 +101,9 @@ const schema = yup.object().shape({
 export default function SignUpScreen() {
   const { mutate, isPending } = useRegister();
   const [occupationOpen, setOccupationOpen] = useState(false);
+  const [countryCodeOpen, setCountryCodeOpen] = useState(false);
+  const [selectedCountryCode, setSelectedCountryCode] =
+    useState(DEFAULT_COUNTRY_CODE);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
@@ -102,9 +127,18 @@ export default function SignUpScreen() {
 
   const onSubmit = (data: any) => {
     const email = data.email?.trim().toLowerCase();
+    const localPhoneNumber = normalizeLocalPhoneNumber(data.phoneNumber);
+    if (localPhoneNumber.length !== selectedCountryCode.localLength) {
+      Alert.alert(
+        "Check phone number",
+        `${selectedCountryCode.country} numbers should have ${selectedCountryCode.localLength} local digits after the country code.`,
+      );
+      return;
+    }
+
     const payload = {
       ...data,
-      phoneNumber: sanitizePhoneNumber(data.phoneNumber),
+      phoneNumber: `${selectedCountryCode.code}${localPhoneNumber}`,
       email: email || `email-${Date.now()}@wildlife-warning.app`,
       role: data.occupation,
     };
@@ -186,35 +220,57 @@ export default function SignUpScreen() {
               render={({ field: { onChange, value } }) => (
                 <View style={styles.inputGroup}>
                   <Text style={styles.label}>Phone Number</Text>
-                  <View
-                    style={[
-                      styles.inputContainer,
-                      focusedInput === "phone_number" &&
-                        styles.inputContainerFocused,
-                    ]}
-                  >
-                    <Phone
-                      size={20}
-                      color={
-                        focusedInput === "phone_number" ? "#22C55E" : "#9CA3AF"
-                      }
-                      style={styles.inputIcon}
-                    />
-                    {/* <Text style={styles.phonePrefix}>+250</Text> */}
-                    <TextInput
-                      style={styles.input}
-                      keyboardType="phone-pad"
-                      value={value}
-                      onChangeText={(text) => {
-                        onChange(sanitizePhoneNumber(text));
-                      }}
-                      onFocus={() => setFocusedInput("phone_number")}
-                      onBlur={() => setFocusedInput(null)}
-                      placeholder="+2507XXXXXXX"
-                      placeholderTextColor="#9CA3AF"
-                      maxLength={13}
-                    />
+                  <View style={styles.phoneRow}>
+                    <TouchableOpacity
+                      style={styles.countryCodeButton}
+                      activeOpacity={0.8}
+                      onPress={() => setCountryCodeOpen(true)}
+                    >
+                      <Text style={styles.countryCodeText}>
+                        +{selectedCountryCode.code}
+                      </Text>
+                      <ChevronDown size={18} color="#6B7280" />
+                    </TouchableOpacity>
+                    <View
+                      style={[
+                        styles.inputContainer,
+                        styles.phoneInputContainer,
+                        focusedInput === "phone_number" &&
+                          styles.inputContainerFocused,
+                      ]}
+                    >
+                      <Phone
+                        size={20}
+                        color={
+                          focusedInput === "phone_number"
+                            ? "#22C55E"
+                            : "#9CA3AF"
+                        }
+                        style={styles.inputIcon}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        keyboardType="phone-pad"
+                        value={value}
+                        onChangeText={(text) => {
+                          onChange(sanitizePhoneNumber(text).slice(0, 10));
+                        }}
+                        onFocus={() => setFocusedInput("phone_number")}
+                        onBlur={() => setFocusedInput(null)}
+                        placeholder={selectedCountryCode.example}
+                        placeholderTextColor="#9CA3AF"
+                        maxLength={10}
+                      />
+                    </View>
                   </View>
+                  <Text style={styles.helperText}>
+                    {formatPhonePreview(selectedCountryCode.code, value)
+                      ? `We will save it as ${formatPhonePreview(
+                          selectedCountryCode.code,
+                          value,
+                        )}`
+                      : `Choose your EAC country code, then enter ${selectedCountryCode.localLength} local digits.`}
+                  </Text>
                   {errors.phoneNumber && (
                     <Text style={styles.errorText}>
                       {errors.phoneNumber.message}
@@ -443,6 +499,63 @@ export default function SignUpScreen() {
           </View>
         </ScrollView>
 
+        <Modal
+          visible={countryCodeOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCountryCodeOpen(false)}
+        >
+          <View style={styles.countryModalOverlay}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => setCountryCodeOpen(false)}
+            />
+            <View style={styles.countryModalSheet}>
+              <Text style={styles.countryModalTitle}>Country code</Text>
+              {EAC_COUNTRY_CODES.map((item) => {
+                const active = item.code === selectedCountryCode.code;
+                return (
+                  <TouchableOpacity
+                    key={item.code}
+                    style={[
+                      styles.countryOption,
+                      active && styles.countryOptionActive,
+                    ]}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      setSelectedCountryCode(item);
+                      setCountryCodeOpen(false);
+                    }}
+                  >
+                    <View>
+                      <Text
+                        style={[
+                          styles.countryName,
+                          active && styles.countryNameActive,
+                        ]}
+                      >
+                        {item.country}
+                      </Text>
+                      <Text style={styles.countryExample}>
+                        Example: +{item.code}
+                        {item.example}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.countryDialCode,
+                        active && styles.countryDialCodeActive,
+                      ]}
+                    >
+                      +{item.code}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -523,11 +636,35 @@ const styles = StyleSheet.create({
   inputIcon: {
     marginRight: 12,
   },
-  phonePrefix: {
+  phoneRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  countryCodeButton: {
+    height: 56,
+    minWidth: 104,
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  countryCodeText: {
     fontSize: 16,
     color: "#1F2937",
-    fontWeight: "600",
-    marginRight: 4,
+    fontWeight: "700",
+  },
+  phoneInputContainer: {
+    flex: 1,
+  },
+  helperText: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: "#6B7280",
   },
   input: {
     flex: 1,
@@ -584,6 +721,60 @@ const styles = StyleSheet.create({
   },
   dropdownArrowUp: {
     transform: [{ rotate: "180deg" }],
+  },
+  countryModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(17, 24, 39, 0.36)",
+    justifyContent: "flex-end",
+  },
+  countryModalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 16,
+    paddingBottom: 28,
+  },
+  countryModalTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 12,
+  },
+  countryOption: {
+    minHeight: 62,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
+    backgroundColor: "#F9FAFB",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  countryOptionActive: {
+    backgroundColor: "#F0FDF4",
+  },
+  countryName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#374151",
+  },
+  countryNameActive: {
+    color: "#15803D",
+  },
+  countryExample: {
+    marginTop: 3,
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  countryDialCode: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#4B5563",
+  },
+  countryDialCodeActive: {
+    color: "#15803D",
   },
   signUpButton: {
     backgroundColor: "#22C55E",

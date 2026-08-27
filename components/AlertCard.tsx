@@ -2,9 +2,9 @@ import { useLocationDistance } from "@/hooks/use-location-distance";
 import { WildlifeAlert } from "@/types/wildlife";
 import { formatDistanceToNow } from "date-fns";
 import {
+  ChevronRight,
   MapPin,
   MessageSquare,
-  ShieldAlert,
   Tractor,
 } from "lucide-react-native";
 import React from "react";
@@ -75,7 +75,7 @@ const AlertCard = ({
   const replies = alert.replyNumber || alert.feedbacks?.length || 0;
   const reportedBy = alert.submittedBy || alert.rawSubmission?.user?.full_name;
   const behaviorText = alert.behavior ? ` ${alert.behavior}` : "";
-  const headline = `${alert.species} reported${behaviorText}`;
+  const headline = `${alert.species} reported behaving ${behaviorText}`;
 
   return (
     <View
@@ -110,7 +110,7 @@ const AlertCard = ({
           ]}
           onPress={onDetailsPress}
         >
-          <ShieldAlert size={20} color="#B45309" />
+          <ChevronRight size={20} color="#B45309" />
         </Pressable>
       </View>
 
